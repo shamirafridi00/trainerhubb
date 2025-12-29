@@ -67,8 +67,10 @@ class Booking(models.Model):
     @property
     def duration_minutes(self):
         """Calculate duration in minutes."""
-        delta = self.end_time - self.start_time
-        return int(delta.total_seconds() / 60)
+        if self.start_time and self.end_time:
+            delta = self.end_time - self.start_time
+            return int(delta.total_seconds() / 60)
+        return 0
     
     @property
     def is_upcoming(self):
