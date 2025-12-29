@@ -7,6 +7,13 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout as auth_logout
 
 
+def landing(request):
+    """Landing page for unauthenticated users."""
+    if request.user.is_authenticated:
+        return redirect('frontend:dashboard')
+    return render(request, 'pages/landing.html')
+
+
 @login_required
 def dashboard(request):
     """Main dashboard page."""

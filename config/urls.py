@@ -20,7 +20,7 @@ urlpatterns = [
     path('api/', include('apps.notifications.urls')),
     path('api/', include('apps.analytics.urls')),
     
-    # Frontend HTMX views
+    # Frontend HTMX views (must be last to catch root URL)
     path('', include('apps.frontend.urls')),
 ]
 
