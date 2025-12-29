@@ -4,16 +4,62 @@
 
 {% block content %}
 <div class="space-y-6">
-    <div class="flex justify-between items-center">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
             <h1 class="text-3xl font-bold text-gray-900">Bookings</h1>
             <p class="mt-1 text-sm text-gray-500">Manage your training sessions</p>
         </div>
+        <button hx-get="{% url 'frontend:bookings_create_form' %}"
+                hx-target="#modal-content"
+                hx-swap="innerHTML"
+                @click="window.dispatchEvent(new CustomEvent('open-modal'))"
+                class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <svg class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            New Booking
+        </button>
     </div>
     
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <p class="text-gray-600">Bookings list will be implemented in Step 9.5</p>
+    <!-- Filters -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div class="flex flex-wrap gap-4">
+            <select hx-get="{% url 'frontend:bookings_list_partial' %}"
+                    hx-target="#bookings-list"
+                    hx-include="[name='status'], [name='date']"
+                    name="status"
+                    class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                <option value="">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+            </select>
+            
+            <input type="date"
+                   name="date"
+                   hx-get="{% url 'frontend:bookings_list_partial' %}"
+                   hx-target="#bookings-list"
+                   hx-include="[name='status']"
+                   class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+        </div>
+    </div>
+    
+    <!-- Bookings List -->
+    <div id="bookings-list"
+         hx-get="{% url 'frontend:bookings_list_partial' %}"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <!-- Loading state -->
+        <div class="space-y-4">
+            {% for i in "12345" %}
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 animate-pulse">
+                <div class="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
+                <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+            </div>
+            {% endfor %}
+        </div>
     </div>
 </div>
 {% endblock %}
-
