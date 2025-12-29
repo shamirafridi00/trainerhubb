@@ -62,9 +62,9 @@ class BookingViewSet(viewsets.ModelViewSet):
         booking.status = 'confirmed'
         booking.save()
         
-        # Note: Notification tasks will be implemented in Epic 7
-        # from apps.notifications.tasks import send_booking_confirmation
-        # send_booking_confirmation.delay(booking.id)
+        # Send confirmation notifications asynchronously
+        from apps.notifications.tasks import send_booking_confirmation
+        send_booking_confirmation.delay(booking.id)
         
         serializer = self.get_serializer(booking)
         return Response(serializer.data)

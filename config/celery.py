@@ -27,6 +27,10 @@ app.conf.beat_schedule = {
         'task': 'apps.notifications.tasks.send_hour_reminders',
         'schedule': crontab(minute='*/30'),  # Every 30 minutes
     },
+    'retry-failed-notifications': {
+        'task': 'apps.notifications.tasks.retry_failed_notifications',
+        'schedule': crontab(hour='*/6', minute=0),  # Every 6 hours
+    },
 }
 
 @app.task(bind=True, ignore_result=True)

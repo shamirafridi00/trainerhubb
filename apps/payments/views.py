@@ -433,6 +433,11 @@ def _handle_transaction_completed(data):
                 payment.amount = amount
                 payment.currency = currency
                 payment.save()
+            
+            # Send payment receipt notification asynchronously
+            from apps.notifications.tasks import send_payment_receipt
+            send_payment_receipt.delay(payment.id)
+            
         except Subscription.DoesNotExist:
             print(f"Subscription not found for transaction: {paddle_transaction_id}")
     except Exception as e:
