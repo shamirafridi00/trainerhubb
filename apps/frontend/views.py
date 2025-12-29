@@ -398,7 +398,13 @@ def bookings_create(request):
         from apps.notifications.tasks import send_booking_confirmation
         send_booking_confirmation.delay(booking.id)
         
-        # Return updated list
+        # Check if request is from dashboard (no bookings-list target)
+        hx_target = request.headers.get('HX-Target', '')
+        if hx_target != 'bookings-list':
+            # Return success message that will close modal
+            return render(request, 'partials/bookings/form_success.html', {'message': 'Booking created successfully!'})
+        
+        # Return updated list for bookings page
         return bookings_list_partial(request)
     except Client.DoesNotExist:
         return render(request, 'partials/bookings/form.html', {
