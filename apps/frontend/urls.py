@@ -75,9 +75,9 @@ urlpatterns = [
     path('logout/', views.logout, name='logout'),
     
     # Logger
-    path('logger/', views.logger_viewer, name='logger_viewer'),
-    path('logger/log/', views.log_activity, name='log_activity'),
-    path('logger/activities/', views.get_activities, name='get_activities'),
-    path('logger/clear/', views.clear_activities, name='clear_activities'),
+    path('logger/', logger_views.logger_viewer, name='logger_viewer'),
+    path('logger/log/', logger_views.log_activity, name='log_activity'),
+    path('logger/activities/', logger_views.get_activities, name='get_activities'),
+    path('logger/clear/', logger_views.clear_activities, name='clear_activities'),
 ]
 

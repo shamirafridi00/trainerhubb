@@ -56,6 +56,10 @@ class ActivityLogger:
 @login_required
 def logger_viewer(request):
     """Logger viewer page."""
+    # Only allow superusers and staff to view logger (optional - remove if you want all users)
+    # if not (request.user.is_superuser or request.user.is_staff):
+    #     from django.http import HttpResponseForbidden
+    #     return HttpResponseForbidden("You don't have permission to view the logger.")
     return render(request, 'pages/logger/viewer.html')
 
 
