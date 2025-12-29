@@ -1,6 +1,6 @@
 <form hx-post="{% url 'frontend:bookings_create' %}"
-      hx-target="#bookings-list"
-      hx-swap="outerHTML"
+      hx-target="#modal-content"
+      hx-swap="innerHTML"
       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
       hx-on::after-swap="handleFormSubmit(event, 'dashboard-bookings-upcoming')"
       hx-on::response-error="handleFormError(event)"

@@ -1,6 +1,6 @@
 <form hx-post="{% if package %}{% url 'frontend:packages_update' package.id %}{% else %}{% url 'frontend:packages_create' %}{% endif %}"
-      hx-target="#packages-list"
-      hx-swap="outerHTML"
+      hx-target="#modal-content"
+      hx-swap="innerHTML"
       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
       hx-on::after-swap="handleFormSubmit(event)"
       hx-on::response-error="handleFormError(event)"
