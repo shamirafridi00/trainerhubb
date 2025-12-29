@@ -1,0 +1,279 @@
+{% extends 'base.html' %}
+
+{% block title %}Activity Logger - TrainerHub{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Activity Logger</h1>
+            <p class="mt-1 text-sm text-gray-500">Real-time tracking of user interactions</p>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="clearActivities()"
+                    class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                Clear Log
+            </button>
+            <button onclick="toggleAutoRefresh()"
+                    id="auto-refresh-btn"
+                    class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+                Auto-refresh: ON
+            </button>
+        </div>
+    </div>
+    
+    <!-- Logger Display -->
+    <div class="bg-gray-900 rounded-lg shadow-lg p-6 font-mono text-sm">
+        <div id="logger-container" class="space-y-1 max-h-[600px] overflow-y-auto">
+            <div class="text-gray-400">Waiting for activities...</div>
+        </div>
+    </div>
+    
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <p class="text-sm text-gray-500">Total Activities</p>
+            <p id="total-count" class="text-2xl font-bold text-gray-900">0</p>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <p class="text-sm text-gray-500">Clicks</p>
+            <p id="clicks-count" class="text-2xl font-bold text-indigo-600">0</p>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <p class="text-sm text-gray-500">Page Views</p>
+            <p id="views-count" class="text-2xl font-bold text-green-600">0</p>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <p class="text-sm text-gray-500">HTMX Requests</p>
+            <p id="htmx-count" class="text-2xl font-bold text-purple-600">0</p>
+        </div>
+    </div>
+</div>
+
+<script>
+let autoRefresh = true;
+let refreshInterval;
+
+// Activity types and their colors
+const activityColors = {
+    'click': 'text-blue-400',
+    'pageview': 'text-green-400',
+    'htmx': 'text-purple-400',
+    'form': 'text-yellow-400',
+    'error': 'text-red-400',
+    'info': 'text-gray-400',
+    'success': 'text-green-400',
+};
+
+function formatTimestamp(timestamp) {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString();
+}
+
+function renderActivity(activity) {
+    const color = activityColors[activity.type] || 'text-gray-400';
+    const details = activity.details ? JSON.stringify(activity.details, null, 2) : '';
+    
+    return `
+        <div class="flex items-start gap-2 py-1 border-b border-gray-800">
+            <span class="text-gray-500 text-xs w-20">${activity.time || formatTimestamp(activity.timestamp)}</span>
+            <span class="${color} font-semibold w-20">[${activity.type.toUpperCase()}]</span>
+            <span class="text-gray-300 flex-1">${activity.message}</span>
+            ${details ? `<pre class="text-xs text-gray-500 mt-1">${details}</pre>` : ''}
+        </div>
+    `;
+}
+
+function loadActivities() {
+    fetch('{% url "frontend:get_activities" %}?limit=200')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('logger-container');
+            const activities = data.activities || [];
+            
+            if (activities.length === 0) {
+                container.innerHTML = '<div class="text-gray-400">No activities yet...</div>';
+                return;
+            }
+            
+            container.innerHTML = activities.reverse().map(renderActivity).join('');
+            
+            // Update stats
+            document.getElementById('total-count').textContent = activities.length;
+            document.getElementById('clicks-count').textContent = 
+                activities.filter(a => a.type === 'click').length;
+            document.getElementById('views-count').textContent = 
+                activities.filter(a => a.type === 'pageview').length;
+            document.getElementById('htmx-count').textContent = 
+                activities.filter(a => a.type === 'htmx').length;
+            
+            // Auto-scroll to bottom
+            container.scrollTop = container.scrollHeight;
+        })
+        .catch(error => {
+            console.error('Error loading activities:', error);
+        });
+}
+
+function clearActivities() {
+    if (confirm('Clear all activities?')) {
+        fetch('{% url "frontend:clear_activities" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(() => {
+            loadActivities();
+        });
+    }
+}
+
+function toggleAutoRefresh() {
+    autoRefresh = !autoRefresh;
+    const btn = document.getElementById('auto-refresh-btn');
+    btn.textContent = `Auto-refresh: ${autoRefresh ? 'ON' : 'OFF'}`;
+    btn.className = autoRefresh 
+        ? 'px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors'
+        : 'px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors';
+    
+    if (autoRefresh) {
+        refreshInterval = setInterval(loadActivities, 2000);
+    } else {
+        clearInterval(refreshInterval);
+    }
+}
+
+// Log page view
+fetch('{% url "frontend:log_activity" %}', {
+    method: 'POST',
+    headers: {
+        'X-CSRFToken': '{{ csrf_token }}',
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+        type: 'pageview',
+        message: 'Logger viewer page opened',
+        details: { path: window.location.pathname }
+    })
+});
+
+// Track clicks
+document.addEventListener('click', (e) => {
+    const target = e.target;
+    const tagName = target.tagName.toLowerCase();
+    const text = target.textContent?.trim().substring(0, 50) || '';
+    const id = target.id || '';
+    const className = target.className || '';
+    
+    fetch('{% url "frontend:log_activity" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            type: 'click',
+            message: `Clicked: ${tagName}${id ? '#' + id : ''}${className ? '.' + className.split(' ')[0] : ''}`,
+            details: {
+                tag: tagName,
+                id: id,
+                class: className,
+                text: text,
+                href: target.href || '',
+            }
+        })
+    });
+});
+
+// Track HTMX requests
+document.body.addEventListener('htmx:beforeRequest', (e) => {
+    fetch('{% url "frontend:log_activity" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            type: 'htmx',
+            message: `HTMX Request: ${e.detail.verb} ${e.detail.path}`,
+            details: {
+                method: e.detail.verb,
+                path: e.detail.path,
+                target: e.detail.target?.id || '',
+            }
+        })
+    });
+});
+
+document.body.addEventListener('htmx:afterSwap', (e) => {
+    fetch('{% url "frontend:log_activity" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            type: 'htmx',
+            message: `HTMX Response: ${e.detail.path} - ${e.detail.xhr?.status || 'OK'}`,
+            details: {
+                path: e.detail.path,
+                status: e.detail.xhr?.status || 200,
+                target: e.detail.target?.id || '',
+            }
+        })
+    });
+});
+
+document.body.addEventListener('htmx:responseError', (e) => {
+    fetch('{% url "frontend:log_activity" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            type: 'error',
+            message: `HTMX Error: ${e.detail.path}`,
+            details: {
+                path: e.detail.path,
+                error: e.detail.error || 'Unknown error',
+            }
+        })
+    });
+});
+
+// Track form submissions
+document.addEventListener('submit', (e) => {
+    fetch('{% url "frontend:log_activity" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            type: 'form',
+            message: `Form submitted: ${e.target.id || e.target.className || 'form'}`,
+            details: {
+                formId: e.target.id,
+                action: e.target.action || '',
+            }
+        })
+    });
+});
+
+// Initial load
+loadActivities();
+
+// Auto-refresh every 2 seconds
+refreshInterval = setInterval(loadActivities, 2000);
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    clearInterval(refreshInterval);
+});
+</script>
+{% endblock %}
+

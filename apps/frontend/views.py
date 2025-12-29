@@ -955,3 +955,7 @@ def logout(request):
     auth_logout(request)
     return redirect('frontend:login')
 
+
+# Import logger views
+from .logger_views import logger_viewer, log_activity, get_activities, clear_activities
+

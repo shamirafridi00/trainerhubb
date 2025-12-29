@@ -56,6 +56,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.frontend.middleware.UserInteractionLoggerMiddleware',  # User interaction logging
 ]
 
 ROOT_URLCONF = 'config.urls'
