@@ -2,7 +2,8 @@
       hx-target="#bookings-list"
       hx-swap="outerHTML"
       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-      hx-on::after-swap="if (!document.getElementById('bookings-list')) { window.dispatchEvent(new CustomEvent('close-modal')); setTimeout(() => { const el = document.getElementById('dashboard-bookings-upcoming'); if (el) htmx.trigger(el, 'refresh'); }, 100); }"
+      hx-on::after-swap="handleFormSubmit(event, 'dashboard-bookings-upcoming')"
+      hx-on::response-error="handleFormError(event)"
       class="space-y-4">
     
     <div>

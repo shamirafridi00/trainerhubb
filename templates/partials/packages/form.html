@@ -2,7 +2,8 @@
       hx-target="#packages-list"
       hx-swap="outerHTML"
       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-      hx-on::after-swap="if (!document.getElementById('packages-list')) { window.dispatchEvent(new CustomEvent('close-modal')); }"
+      hx-on::after-swap="handleFormSubmit(event)"
+      hx-on::response-error="handleFormError(event)"
       class="space-y-4">
     
     <div>

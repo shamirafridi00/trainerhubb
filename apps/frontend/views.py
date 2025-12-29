@@ -400,7 +400,7 @@ def bookings_create(request):
         
         # Check if request is from dashboard (no bookings-list target)
         hx_target = request.headers.get('HX-Target', '')
-        if hx_target != 'bookings-list':
+        if hx_target != 'bookings-list' or not hx_target:
             # Return success message that will close modal
             return render(request, 'partials/bookings/form_success.html', {'message': 'Booking created successfully!'})
         
@@ -530,9 +530,9 @@ def clients_create(request):
         )
         
         # Check if request is from dashboard
-        if request.headers.get('HX-Target') != 'clients-list':
-            from django.template.loader import render_to_string
-            return JsonResponse({'success': True, 'message': 'Client created successfully!'}, status=200)
+        hx_target = request.headers.get('HX-Target', '')
+        if hx_target != 'clients-list' or not hx_target:
+            return render(request, 'partials/clients/form_success.html', {'message': 'Client created successfully!'})
         
         return clients_list_partial(request)
     except Exception as e:
@@ -625,8 +625,9 @@ def packages_create(request):
         )
         
         # Check if request is from dashboard
-        if request.headers.get('HX-Target') != 'packages-list':
-            return JsonResponse({'success': True, 'message': 'Package created successfully!'}, status=200)
+        hx_target = request.headers.get('HX-Target', '')
+        if hx_target != 'packages-list' or not hx_target:
+            return render(request, 'partials/packages/form_success.html', {'message': 'Package created successfully!'})
         
         return packages_list_partial(request)
     except Exception as e:
