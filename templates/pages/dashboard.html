@@ -13,19 +13,22 @@
         <div class="flex flex-wrap gap-3">
             <button hx-get="{% url 'frontend:bookings_create_form' %}"
                     hx-target="#modal-content"
-                    @click="window.dispatchEvent(new CustomEvent('open-modal'))"
+                    hx-swap="innerHTML"
+                    hx-on::after-swap="window.dispatchEvent(new CustomEvent('open-modal'))"
                     class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 New Booking
             </button>
             <button hx-get="{% url 'frontend:clients_create_form' %}"
                     hx-target="#modal-content"
-                    @click="window.dispatchEvent(new CustomEvent('open-modal'))"
+                    hx-swap="innerHTML"
+                    hx-on::after-swap="window.dispatchEvent(new CustomEvent('open-modal'))"
                     class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500">
                 New Client
             </button>
             <button hx-get="{% url 'frontend:packages_create_form' %}"
                     hx-target="#modal-content"
-                    @click="window.dispatchEvent(new CustomEvent('open-modal'))"
+                    hx-swap="innerHTML"
+                    hx-on::after-swap="window.dispatchEvent(new CustomEvent('open-modal'))"
                     class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500">
                 New Package
             </button>
