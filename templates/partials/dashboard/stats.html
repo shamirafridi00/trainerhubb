@@ -14,7 +14,7 @@
     {% if stat.change is not None %}
     <div class="mt-4 flex items-center">
         <span class="text-sm {% if stat.change > 0 %}text-green-600{% else %}text-red-600{% endif %}">
-            {% if stat.change > 0 %}↑{% else %}↓{% endif %} {{ stat.change|abs }}%
+            {% if stat.change > 0 %}↑{% else %}↓{% endif %} {{ stat.change_abs }}%
         </span>
         <span class="text-sm text-gray-500 ml-2">vs last month</span>
     </div>

@@ -137,10 +137,14 @@ def dashboard_stats(request):
     booking_change = 0
     if last_month_bookings > 0:
         booking_change = round(((total_bookings - last_month_bookings) / last_month_bookings) * 100, 1)
+    elif total_bookings > 0 and last_month_bookings == 0:
+        booking_change = 100  # New bookings this month
     
     client_change = 0
     if last_month_clients > 0:
         client_change = round(((total_clients - last_month_clients) / last_month_clients) * 100, 1)
+    elif total_clients > 0 and last_month_clients == 0:
+        client_change = 100  # New clients this month
     
     stats = [
         {
@@ -148,7 +152,8 @@ def dashboard_stats(request):
             'value': total_bookings,
             'color': 'indigo',
             'icon': 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
-            'change': booking_change
+            'change': booking_change,
+            'change_abs': abs(booking_change) if booking_change is not None else None
         },
         {
             'label': 'Upcoming',
@@ -161,7 +166,8 @@ def dashboard_stats(request):
             'value': total_clients,
             'color': 'purple',
             'icon': 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z',
-            'change': client_change
+            'change': client_change,
+            'change_abs': abs(client_change) if client_change is not None else None
         },
         {
             'label': 'Total Revenue',
