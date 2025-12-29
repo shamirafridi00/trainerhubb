@@ -70,5 +70,8 @@ urlpatterns = [
     path('settings/profile-update/', views.settings_profile_update, name='settings_profile_update'),
     path('settings/subscription-info/', views.settings_subscription_info, name='settings_subscription_info'),
     path('settings/notifications-form/', views.settings_notifications_form, name='settings_notifications_form'),
+    
+    # Auth
+    path('logout/', views.logout, name='logout'),
 ]
 
