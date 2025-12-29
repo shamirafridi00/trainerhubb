@@ -76,11 +76,11 @@ function renderActivity(activity) {
     const details = activity.details ? JSON.stringify(activity.details, null, 2) : '';
     
     return `
-        <div class="flex items-start gap-2 py-1 border-b border-gray-800">
-            <span class="text-gray-500 text-xs w-20">${activity.time || formatTimestamp(activity.timestamp)}</span>
-            <span class="${color} font-semibold w-20">[${activity.type.toUpperCase()}]</span>
-            <span class="text-gray-300 flex-1">${activity.message}</span>
-            ${details ? `<pre class="text-xs text-gray-500 mt-1">${details}</pre>` : ''}
+        <div class="flex items-start gap-2 py-1 border-b border-gray-800 hover:bg-gray-800 transition-colors">
+            <span class="text-gray-500 text-xs w-20 flex-shrink-0">${activity.time || formatTimestamp(activity.timestamp)}</span>
+            <span class="${color} font-semibold w-24 flex-shrink-0">[${activity.type.toUpperCase()}]</span>
+            <span class="text-gray-300 flex-1 break-words">${activity.message}</span>
+            ${details ? `<div class="w-full mt-1"><pre class="text-xs text-gray-500 overflow-x-auto">${details}</pre></div>` : ''}
         </div>
     `;
 }
