@@ -11,6 +11,7 @@ urlpatterns = [
     path('', api_root, name='api-root'),  # Root welcome page
     path('admin/', admin.site.urls),
     path('api/', include('apps.users.urls')),
+    path('api/', include('apps.availability.urls')),
 ]
 
 # Serve media files in development
