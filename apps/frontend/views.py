@@ -925,5 +925,5 @@ def settings_notifications_form(request):
 def logout(request):
     """Logout view."""
     auth_logout(request)
-    return redirect('users:login')
+    return redirect('frontend:login')
 
