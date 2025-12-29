@@ -3,6 +3,7 @@ Frontend URL configuration for HTMX views.
 """
 from django.urls import path
 from . import views
+from . import logger_views
 
 app_name = 'frontend'
 
