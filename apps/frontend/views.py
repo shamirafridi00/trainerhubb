@@ -4,11 +4,12 @@ DRF endpoints remain available for future React Native app.
 """
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth import logout as auth_logout
+from django.contrib.auth import logout as auth_logout, authenticate, login as auth_login
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 from django.db.models import Q
+from django.contrib import messages
 from datetime import datetime, timedelta
 
 from apps.bookings.models import Booking
@@ -26,6 +27,83 @@ def landing(request):
     if request.user.is_authenticated:
         return redirect('frontend:dashboard')
     return render(request, 'pages/landing.html')
+
+
+def register(request):
+    """Registration page for new users."""
+    if request.user.is_authenticated:
+        return redirect('frontend:dashboard')
+    
+    if request.method == 'POST':
+        # Call DRF API endpoint for registration
+        import json
+        from django.test import RequestFactory
+        from apps.users.views import UserViewSet
+        from rest_framework.request import Request
+        from rest_framework.test import force_authenticate
+        
+        # Prepare data
+        data = {
+            'email': request.POST.get('email'),
+            'username': request.POST.get('username'),
+            'first_name': request.POST.get('first_name'),
+            'last_name': request.POST.get('last_name'),
+            'password': request.POST.get('password'),
+            'password_confirm': request.POST.get('password_confirm'),
+        }
+        
+        # Create API request
+        factory = RequestFactory()
+        api_request = factory.post('/api/users/register/', 
+                                   data=json.dumps(data),
+                                   content_type='application/json')
+        
+        # Wrap in DRF request
+        drf_request = Request(api_request)
+        drf_request.data = data
+        
+        # Call viewset
+        viewset = UserViewSet()
+        viewset.request = drf_request
+        response = viewset.register(drf_request)
+        
+        if response.status_code == 201:
+            # Registration successful, now log them in
+            user = authenticate(request, username=data['email'], password=data['password'])
+            if user:
+                auth_login(request, user)
+                return redirect('frontend:dashboard')
+        
+        # If registration failed, show error
+        error_msg = 'Registration failed. Please check your information.'
+        if hasattr(response, 'data') and isinstance(response.data, dict):
+            if 'error' in response.data:
+                error_msg = response.data['error']
+            elif 'detail' in response.data:
+                error_msg = response.data['detail']
+        messages.error(request, error_msg)
+    
+    return render(request, 'pages/auth/register.html')
+
+
+def login(request):
+    """Login page."""
+    if request.user.is_authenticated:
+        return redirect('frontend:dashboard')
+    
+    if request.method == 'POST':
+        email = request.POST.get('email')
+        password = request.POST.get('password')
+        
+        # Authenticate using email as username
+        user = authenticate(request, username=email, password=password)
+        if user:
+            auth_login(request, user)
+            return redirect('frontend:dashboard')
+        else:
+            messages.error(request, 'Invalid email or password.')
+    
+    return render(request, 'pages/auth/login.html')
 
 
 @login_required
