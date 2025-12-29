@@ -26,11 +26,32 @@ urlpatterns = [
     path('bookings/<int:booking_id>/cancel/', views.bookings_cancel, name='bookings_cancel'),
     path('bookings/<int:booking_id>/mark-completed/', views.bookings_mark_completed, name='bookings_mark_completed'),
     
-    # Other pages
+    # Clients
     path('clients/', views.clients_list, name='clients_list'),
+    path('clients/partial/', views.clients_list_partial, name='clients_list_partial'),
+    path('clients/create-form/', views.clients_create_form, name='clients_create_form'),
+    path('clients/create/', views.clients_create, name='clients_create'),
+    path('clients/<int:client_id>/', views.clients_detail, name='clients_detail'),
+    path('clients/<int:client_id>/edit-form/', views.clients_edit_form, name='clients_edit_form'),
+    path('clients/<int:client_id>/update/', views.clients_update, name='clients_update'),
+    
+    # Packages
     path('packages/', views.packages_list, name='packages_list'),
+    path('packages/partial/', views.packages_list_partial, name='packages_list_partial'),
+    path('packages/create-form/', views.packages_create_form, name='packages_create_form'),
+    path('packages/create/', views.packages_create, name='packages_create'),
+    path('packages/<int:package_id>/edit-form/', views.packages_edit_form, name='packages_edit_form'),
+    path('packages/<int:package_id>/update/', views.packages_update, name='packages_update'),
+    
+    # Analytics
     path('analytics/', views.analytics_dashboard, name='analytics_dashboard'),
+    
+    # Notifications
     path('notifications/', views.notifications_list, name='notifications_list'),
+    path('notifications/partial/', views.notifications_list_partial, name='notifications_list_partial'),
+    path('notifications/<int:notification_id>/mark-read/', views.notifications_mark_read, name='notifications_mark_read'),
+    
+    # Settings
     path('settings/', views.settings, name='settings'),
 ]
 

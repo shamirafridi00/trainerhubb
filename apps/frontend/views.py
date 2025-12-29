@@ -13,7 +13,9 @@ from datetime import datetime, timedelta
 
 from apps.bookings.models import Booking
 from apps.clients.models import Client
+from apps.packages.models import SessionPackage
 from apps.payments.models import Payment
+from apps.notifications.models import Notification
 from apps.trainers.models import Trainer
 from django.db.models import Sum, Count
 from datetime import timedelta
@@ -382,9 +384,173 @@ def clients_list(request):
 
 
 @login_required
+def clients_list_partial(request):
+    """Clients list partial for HTMX."""
+    try:
+        trainer = request.user.trainer_profile
+    except Trainer.DoesNotExist:
+        return render(request, 'partials/clients/list.html', {'clients': []})
+    
+    clients = Client.objects.filter(trainer=trainer).order_by('-created_at')
+    
+    # Filters
+    fitness_level = request.GET.get('fitness_level')
+    if fitness_level:
+        clients = clients.filter(fitness_level=fitness_level)
+    
+    is_active = request.GET.get('is_active')
+    if is_active == 'true':
+        clients = clients.filter(is_active=True)
+    elif is_active == 'false':
+        clients = clients.filter(is_active=False)
+    
+    return render(request, 'partials/clients/list.html', {'clients': clients})
+
+
+@login_required
+def clients_create_form(request):
+    """Client creation form partial for HTMX modal."""
+    return render(request, 'partials/clients/form.html', {'client': None})
+
+
+@login_required
+@require_http_methods(["POST"])
+def clients_create(request):
+    """Create client via HTMX."""
+    try:
+        trainer = request.user.trainer_profile
+    except Trainer.DoesNotExist:
+        return JsonResponse({'error': 'Trainer profile not found'}, status=400)
+    
+    try:
+        client = Client.objects.create(
+            trainer=trainer,
+            first_name=request.POST.get('first_name'),
+            last_name=request.POST.get('last_name'),
+            email=request.POST.get('email'),
+            phone=request.POST.get('phone', ''),
+            fitness_level=request.POST.get('fitness_level', 'beginner'),
+            notes=request.POST.get('notes', ''),
+            is_active=True
+        )
+        return clients_list_partial(request)
+    except Exception as e:
+        return render(request, 'partials/clients/form.html', {
+            'client': None,
+            'error': str(e)
+        })
+
+
+@login_required
+def clients_detail(request, client_id):
+    """Client detail partial for HTMX modal."""
+    client = get_object_or_404(Client, id=client_id, trainer=request.user.trainer_profile)
+    return render(request, 'partials/clients/detail.html', {'client': client})
+
+
+@login_required
+def clients_edit_form(request, client_id):
+    """Client edit form partial for HTMX modal."""
+    client = get_object_or_404(Client, id=client_id, trainer=request.user.trainer_profile)
+    return render(request, 'partials/clients/form.html', {'client': client})
+
+
+@login_required
+@require_http_methods(["POST"])
+def clients_update(request, client_id):
+    """Update client via HTMX."""
+    client = get_object_or_404(Client, id=client_id, trainer=request.user.trainer_profile)
+    
+    client.first_name = request.POST.get('first_name')
+    client.last_name = request.POST.get('last_name')
+    client.email = request.POST.get('email')
+    client.phone = request.POST.get('phone', '')
+    client.fitness_level = request.POST.get('fitness_level', 'beginner')
+    client.notes = request.POST.get('notes', '')
+    client.is_active = request.POST.get('is_active') == 'on'
+    client.save()
+    
+    return clients_list_partial(request)
+
+
+@login_required
 def packages_list(request):
     """Packages list page."""
     return render(request, 'pages/packages/list.html')
+
+
+@login_required
+def packages_list_partial(request):
+    """Packages list partial for HTMX."""
+    try:
+        trainer = request.user.trainer_profile
+    except Trainer.DoesNotExist:
+        return render(request, 'partials/packages/list.html', {'packages': []})
+    
+    packages = SessionPackage.objects.filter(trainer=trainer).order_by('-created_at')
+    
+    is_active = request.GET.get('is_active')
+    if is_active == 'true':
+        packages = packages.filter(is_active=True)
+    elif is_active == 'false':
+        packages = packages.filter(is_active=False)
+    
+    return render(request, 'partials/packages/list.html', {'packages': packages})
+
+
+@login_required
+def packages_create_form(request):
+    """Package creation form partial for HTMX modal."""
+    return render(request, 'partials/packages/form.html', {'package': None})
+
+
+@login_required
+@require_http_methods(["POST"])
+def packages_create(request):
+    """Create package via HTMX."""
+    try:
+        trainer = request.user.trainer_profile
+    except Trainer.DoesNotExist:
+        return JsonResponse({'error': 'Trainer profile not found'}, status=400)
+    
+    try:
+        package = SessionPackage.objects.create(
+            trainer=trainer,
+            name=request.POST.get('name'),
+            description=request.POST.get('description', ''),
+            sessions_count=int(request.POST.get('sessions_count', 1)),
+            price=float(request.POST.get('price', 0)),
+            is_active=request.POST.get('is_active') == 'on'
+        )
+        return packages_list_partial(request)
+    except Exception as e:
+        return render(request, 'partials/packages/form.html', {
+            'package': None,
+            'error': str(e)
+        })
+
+
+@login_required
+def packages_edit_form(request, package_id):
+    """Package edit form partial for HTMX modal."""
+    package = get_object_or_404(SessionPackage, id=package_id, trainer=request.user.trainer_profile)
+    return render(request, 'partials/packages/form.html', {'package': package})
+
+
+@login_required
+@require_http_methods(["POST"])
+def packages_update(request, package_id):
+    """Update package via HTMX."""
+    package = get_object_or_404(SessionPackage, id=package_id, trainer=request.user.trainer_profile)
+    
+    package.name = request.POST.get('name')
+    package.description = request.POST.get('description', '')
+    package.sessions_count = int(request.POST.get('sessions_count', 1))
+    package.price = float(request.POST.get('price', 0))
+    package.is_active = request.POST.get('is_active') == 'on'
+    package.save()
+    
+    return packages_list_partial(request)
 
 
 @login_required
@@ -397,6 +563,33 @@ def analytics_dashboard(request):
 def notifications_list(request):
     """Notifications list page."""
     return render(request, 'pages/notifications/list.html')
+
+
+@login_required
+def notifications_list_partial(request):
+    """Notifications list partial for HTMX."""
+    try:
+        trainer = request.user.trainer_profile
+        notifications = Notification.objects.filter(trainer=trainer).order_by('-created_at')[:50]
+    except Trainer.DoesNotExist:
+        notifications = Notification.objects.none()
+    return render(request, 'partials/notifications/list.html', {'notifications': notifications})
+
+
+@login_required
+@require_http_methods(["POST"])
+def notifications_mark_read(request, notification_id):
+    """Mark notification as read via HTMX."""
+    try:
+        trainer = request.user.trainer_profile
+        notification = get_object_or_404(Notification, id=notification_id, trainer=trainer)
+        # Note: Notification model doesn't have is_read field, but we can mark as sent
+        if notification.status == 'pending':
+            notification.status = 'sent'
+            notification.save()
+    except Trainer.DoesNotExist:
+        pass
+    return notifications_list_partial(request)
 
 
 @login_required

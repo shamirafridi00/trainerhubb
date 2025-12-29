@@ -1,0 +1,55 @@
+<div class="space-y-4">
+    <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Client Details</h3>
+        
+        <div class="space-y-3">
+            <div class="flex justify-between">
+                <span class="text-sm font-medium text-gray-500">Name:</span>
+                <span class="text-sm text-gray-900">{{ client.get_full_name }}</span>
+            </div>
+            
+            <div class="flex justify-between">
+                <span class="text-sm font-medium text-gray-500">Email:</span>
+                <span class="text-sm text-gray-900">{{ client.email }}</span>
+            </div>
+            
+            {% if client.phone %}
+            <div class="flex justify-between">
+                <span class="text-sm font-medium text-gray-500">Phone:</span>
+                <span class="text-sm text-gray-900">{{ client.phone }}</span>
+            </div>
+            {% endif %}
+            
+            <div class="flex justify-between">
+                <span class="text-sm font-medium text-gray-500">Fitness Level:</span>
+                <span class="text-sm text-gray-900">{{ client.get_fitness_level_display }}</span>
+            </div>
+            
+            <div class="flex justify-between">
+                <span class="text-sm font-medium text-gray-500">Status:</span>
+                <span class="px-2 py-1 text-xs font-medium rounded-full {% if client.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                    {% if client.is_active %}Active{% else %}Inactive{% endif %}
+                </span>
+            </div>
+            
+            {% if client.notes %}
+            <div class="pt-3 border-t border-gray-200">
+                <span class="text-sm font-medium text-gray-500 block mb-2">Notes:</span>
+                <p class="text-sm text-gray-900">{{ client.notes }}</p>
+            </div>
+            {% endif %}
+            
+            {% if client.goals %}
+            <div class="pt-3 border-t border-gray-200">
+                <span class="text-sm font-medium text-gray-500 block mb-2">Goals:</span>
+                <ul class="list-disc list-inside text-sm text-gray-900">
+                    {% for goal in client.goals %}
+                    <li>{{ goal }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+

@@ -1,0 +1,42 @@
+<div class="space-y-4">
+    {% for notification in notifications %}
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow {% if notification.status == 'pending' %}border-l-4 border-l-indigo-500{% endif %}">
+        <div class="flex justify-between items-start">
+            <div class="flex-1">
+                <div class="flex items-center gap-2 mb-2">
+                    <h3 class="text-lg font-semibold text-gray-900">{{ notification.subject|default:"Notification" }}</h3>
+                    {% if notification.status == 'pending' %}
+                    <span class="px-2 py-1 text-xs font-medium bg-indigo-100 text-indigo-800 rounded-full">New</span>
+                    {% elif notification.status == 'failed' %}
+                    <span class="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">Failed</span>
+                    {% endif %}
+                    <span class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">{{ notification.get_notification_type_display }}</span>
+                </div>
+                <p class="text-sm text-gray-600 mb-2">{{ notification.message }}</p>
+                <div class="flex items-center gap-4 text-xs text-gray-500">
+                    <span>To: {{ notification.recipient }}</span>
+                    <span>{{ notification.created_at|timesince }} ago</span>
+                </div>
+            </div>
+            {% if notification.status == 'pending' %}
+            <button hx-post="{% url 'frontend:notifications_mark_read' notification.id %}"
+                    hx-target="#notifications-list"
+                    hx-swap="outerHTML"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    class="px-3 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                Mark Read
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% empty %}
+    <div class="text-center py-12 bg-white rounded-lg border border-gray-200">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900">No notifications</h3>
+        <p class="mt-1 text-sm text-gray-500">You're all caught up!</p>
+    </div>
+    {% endfor %}
+</div>
+

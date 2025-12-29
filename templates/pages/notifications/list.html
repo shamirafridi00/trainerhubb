@@ -4,16 +4,28 @@
 
 {% block content %}
 <div class="space-y-6">
-    <div class="flex justify-between items-center">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
             <h1 class="text-3xl font-bold text-gray-900">Notifications</h1>
             <p class="mt-1 text-sm text-gray-500">View notification history</p>
         </div>
     </div>
     
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <p class="text-gray-600">Notifications list will be implemented in Step 9.8</p>
+    <!-- Notifications List -->
+    <div id="notifications-list"
+         hx-get="{% url 'frontend:notifications_list_partial' %}"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <!-- Loading state -->
+        <div class="space-y-4">
+            {% for i in "12345" %}
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 animate-pulse">
+                <div class="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
+                <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+            </div>
+            {% endfor %}
+        </div>
     </div>
 </div>
 {% endblock %}
-
