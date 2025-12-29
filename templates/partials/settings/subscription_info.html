@@ -19,10 +19,10 @@
             <p class="text-sm font-medium text-gray-500">Status</p>
             <p class="text-sm text-gray-900 mt-1">{{ subscription.get_status_display }}</p>
         </div>
-        {% if subscription.current_period_end %}
+        {% if subscription.next_billing_date %}
         <div>
             <p class="text-sm font-medium text-gray-500">Next Billing Date</p>
-            <p class="text-sm text-gray-900 mt-1">{{ subscription.current_period_end|date:"F d, Y" }}</p>
+            <p class="text-sm text-gray-900 mt-1">{{ subscription.next_billing_date|date:"F d, Y" }}</p>
         </div>
         {% endif %}
     </div>
