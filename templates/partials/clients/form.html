@@ -1,7 +1,8 @@
 <form hx-post="{% if client %}{% url 'frontend:clients_update' client.id %}{% else %}{% url 'frontend:clients_create' %}{% endif %}"
-      hx-target="{% if client %}#clients-list{% else %}#clients-list{% endif %}"
+      hx-target="#clients-list"
       hx-swap="outerHTML"
       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      hx-on::after-swap="if (!document.getElementById('clients-list')) { window.dispatchEvent(new CustomEvent('close-modal')); setTimeout(() => { const el = document.getElementById('dashboard-clients-recent'); if (el) htmx.trigger(el, 'refresh'); }, 100); }"
       class="space-y-4">
     
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -522,6 +522,12 @@ def clients_create(request):
             notes=request.POST.get('notes', ''),
             is_active=True
         )
+        
+        # Check if request is from dashboard
+        if request.headers.get('HX-Target') != 'clients-list':
+            from django.template.loader import render_to_string
+            return JsonResponse({'success': True, 'message': 'Client created successfully!'}, status=200)
+        
         return clients_list_partial(request)
     except Exception as e:
         return render(request, 'partials/clients/form.html', {
@@ -611,6 +617,11 @@ def packages_create(request):
             price=float(request.POST.get('price', 0)),
             is_active=request.POST.get('is_active') == 'on'
         )
+        
+        # Check if request is from dashboard
+        if request.headers.get('HX-Target') != 'packages-list':
+            return JsonResponse({'success': True, 'message': 'Package created successfully!'}, status=200)
+        
         return packages_list_partial(request)
     except Exception as e:
         return render(request, 'partials/packages/form.html', {

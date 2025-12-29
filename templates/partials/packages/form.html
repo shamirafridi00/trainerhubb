@@ -2,6 +2,7 @@
       hx-target="#packages-list"
       hx-swap="outerHTML"
       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      hx-on::after-swap="if (!document.getElementById('packages-list')) { window.dispatchEvent(new CustomEvent('close-modal')); }"
       class="space-y-4">
     
     <div>
