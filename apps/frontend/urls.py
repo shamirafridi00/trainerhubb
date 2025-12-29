@@ -7,6 +7,12 @@ from . import views
 app_name = 'frontend'
 
 urlpatterns = [
-    # URLs will be added in subsequent steps
+    path('', views.dashboard, name='dashboard'),
+    path('bookings/', views.bookings_list, name='bookings_list'),
+    path('clients/', views.clients_list, name='clients_list'),
+    path('packages/', views.packages_list, name='packages_list'),
+    path('analytics/', views.analytics_dashboard, name='analytics_dashboard'),
+    path('notifications/', views.notifications_list, name='notifications_list'),
+    path('settings/', views.settings, name='settings'),
 ]
 

@@ -8,8 +8,9 @@ from django.conf.urls.static import static
 from .views import api_root
 
 urlpatterns = [
-    path('', api_root, name='api-root'),  # Root welcome page
     path('admin/', admin.site.urls),
+    
+    # DRF API (keep for React Native)
     path('api/', include('apps.users.urls')),
     path('api/', include('apps.availability.urls')),
     path('api/', include('apps.clients.urls')),
@@ -18,6 +19,9 @@ urlpatterns = [
     path('api/', include('apps.payments.urls')),  # Includes subscriptions, payments, and webhooks
     path('api/', include('apps.notifications.urls')),
     path('api/', include('apps.analytics.urls')),
+    
+    # Frontend HTMX views
+    path('', include('apps.frontend.urls')),
 ]
 
 # Serve media files in development
