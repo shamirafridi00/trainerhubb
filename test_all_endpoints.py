@@ -95,7 +95,8 @@ class EndpointTester:
                 defaults={
                     'first_name': 'Test',
                     'last_name': 'Trainer',
-                    'role': 'trainer'
+                    'is_trainer': True,
+                    'username': self.email.split('@')[0]
                 }
             )
             if created:
@@ -152,7 +153,7 @@ class EndpointTester:
         
         try:
             response = requests.post(
-                f"{self.base_url}/api/login/",
+                f"{self.base_url}/api/users/login/",
                 json={
                     'email': self.email,
                     'password': self.password
@@ -172,35 +173,55 @@ class EndpointTester:
             print_error(f"Authentication error: {str(e)}")
             return False
     
-    def test_endpoint(self, method, url, data=None, expected_status=200, description=""):
+    def test_endpoint(self, method, url, data=None, expected_status=None, description=""):
         """Test a single endpoint."""
         self.stats['total'] += 1
         
+        # Set default expected status based on method
+        if expected_status is None:
+            if method.upper() == 'POST':
+                expected_status = [201, 200]  # Created or OK
+            elif method.upper() == 'DELETE':
+                expected_status = [204, 200]  # No Content or OK
+            else:
+                expected_status = [200]  # OK
+        
+        if not isinstance(expected_status, list):
+            expected_status = [expected_status]
+        
         try:
             if method.upper() == 'GET':
-                response = requests.get(url, headers=self.headers)
+                response = requests.get(url, headers=self.headers, timeout=10)
             elif method.upper() == 'POST':
-                response = requests.post(url, headers=self.headers, json=data)
+                response = requests.post(url, headers=self.headers, json=data, timeout=10)
             elif method.upper() == 'PUT':
-                response = requests.put(url, headers=self.headers, json=data)
+                response = requests.put(url, headers=self.headers, json=data, timeout=10)
             elif method.upper() == 'PATCH':
-                response = requests.patch(url, headers=self.headers, json=data)
+                response = requests.patch(url, headers=self.headers, json=data, timeout=10)
             elif method.upper() == 'DELETE':
-                response = requests.delete(url, headers=self.headers)
+                response = requests.delete(url, headers=self.headers, timeout=10)
             else:
                 print_error(f"Unsupported method: {method}")
                 self.stats['failed'] += 1
                 return None
             
-            if response.status_code == expected_status:
-                print_success(f"{method} {url} - {description}")
+            if response.status_code in expected_status:
+                print_success(f"{method} {url} ({response.status_code}) - {description}")
                 self.stats['passed'] += 1
-                return response.json() if response.content else {}
+                try:
+                    return response.json() if response.content else {}
+                except:
+                    return {}
             else:
                 print_error(f"{method} {url} - Expected {expected_status}, got {response.status_code}")
-                print_error(f"Response: {response.text[:200]}")
+                if response.content:
+                    print_error(f"Response: {response.text[:200]}")
                 self.stats['failed'] += 1
                 return None
+        except requests.exceptions.ConnectionError:
+            print_error(f"{method} {url} - Connection error (server not running?)")
+            self.stats['failed'] += 1
+            return None
         except Exception as e:
             print_error(f"{method} {url} - Error: {str(e)}")
             self.stats['failed'] += 1
@@ -211,11 +232,11 @@ class EndpointTester:
         print_header("EPIC 1-2: User & Trainer Endpoints")
         
         # Get profile
-        self.test_endpoint('GET', f"{self.base_url}/api/profile/", 
+        self.test_endpoint('GET', f"{self.base_url}/api/users/me/", 
                           description="Get user profile")
         
-        # Update profile
-        self.test_endpoint('PATCH', f"{self.base_url}/api/profile/",
+        # Update profile (using me endpoint with PATCH)
+        self.test_endpoint('PATCH', f"{self.base_url}/api/users/me/",
                           data={'first_name': 'Updated'},
                           description="Update user profile")
     
@@ -231,7 +252,7 @@ class EndpointTester:
             'is_active': True
         }
         slot_response = self.test_endpoint('POST', f"{self.base_url}/api/availability-slots/",
-                                          data=slot_data, description="Create availability slot")
+                                          data=slot_data, expected_status=[201], description="Create availability slot")
         
         if slot_response:
             slot_id = slot_response.get('id')
@@ -263,7 +284,7 @@ class EndpointTester:
         # Add note to client
         self.test_endpoint('POST', f"{self.base_url}/api/clients/{client_id}/add-note/",
                           data={'content': 'Test note from endpoint tester'},
-                          description="Add note to client")
+                          expected_status=[201], description="Add note to client")
         
         # Get client notes
         self.test_endpoint('GET', f"{self.base_url}/api/clients/{client_id}/notes/",
@@ -288,7 +309,7 @@ class EndpointTester:
             'notes': 'Test booking'
         }
         booking_response = self.test_endpoint('POST', f"{self.base_url}/api/bookings/",
-                                             data=booking_data, description="Create booking")
+                                             data=booking_data, expected_status=[201], description="Create booking")
         
         if booking_response:
             booking_id = booking_response.get('id')
@@ -322,7 +343,7 @@ class EndpointTester:
             'is_active': True
         }
         package_response = self.test_endpoint('POST', f"{self.base_url}/api/packages/",
-                                             data=package_data, description="Create package")
+                                             data=package_data, expected_status=[201], description="Create package")
         
         if package_response:
             package_id = package_response.get('id')

@@ -54,7 +54,8 @@ class BookingCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Booking
-        fields = ['client', 'start_time', 'end_time', 'notes']
+        fields = ['id', 'client', 'start_time', 'end_time', 'notes', 'status', 'created_at']
+        read_only_fields = ['id', 'status', 'created_at']
     
     def validate_start_time(self, value):
         """Validate start time is in the future."""
@@ -69,9 +70,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
         return data
     
     def create(self, validated_data):
-        """Create booking with current trainer."""
-        trainer = self.context['request'].user.trainer_profile
-        validated_data['trainer'] = trainer
+        """Create booking - trainer is set by view's perform_create."""
         return super().create(validated_data)
 
 

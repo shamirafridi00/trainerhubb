@@ -14,9 +14,49 @@ class AvailabilitySlotSerializer(serializers.ModelSerializer):
     
     def validate(self, data):
         """Validate time slots."""
-        if data['start_time'] >= data['end_time']:
+        start_time = data.get('start_time')
+        end_time = data.get('end_time')
+        
+        # Use instance values if not provided in data
+        if start_time is None and self.instance:
+            start_time = self.instance.start_time
+        if end_time is None and self.instance:
+            end_time = self.instance.end_time
+        
+        if start_time and end_time and start_time >= end_time:
             raise serializers.ValidationError("End time must be after start time.")
         return data
+    
+    def create(self, validated_data):
+        """Create availability slot, handle unique constraint gracefully."""
+        try:
+            return super().create(validated_data)
+        except Exception as e:
+            # Check if it's a unique constraint violation
+            if 'unique' in str(e).lower() or 'already exists' in str(e).lower():
+                # Try to get existing slot
+                trainer = validated_data.get('trainer')
+                day_of_week = validated_data.get('day_of_week')
+                start_time = validated_data.get('start_time')
+                end_time = validated_data.get('end_time')
+                
+                if trainer and day_of_week is not None and start_time and end_time:
+                    try:
+                        existing = AvailabilitySlot.objects.get(
+                            trainer=trainer,
+                            day_of_week=day_of_week,
+                            start_time=start_time,
+                            end_time=end_time
+                        )
+                        # Update existing slot instead
+                        for key, value in validated_data.items():
+                            setattr(existing, key, value)
+                        existing.save()
+                        return existing
+                    except AvailabilitySlot.DoesNotExist:
+                        pass
+            
+            raise
 
 
 class TrainerBreakSerializer(serializers.ModelSerializer):

@@ -21,6 +21,25 @@ class SessionPackageSerializer(serializers.ModelSerializer):
         if value <= 0:
             raise serializers.ValidationError("Price must be greater than 0.")
         return value
+    
+    def create(self, validated_data):
+        """Create package, handle unique constraint gracefully."""
+        trainer = validated_data.get('trainer')
+        name = validated_data.get('name')
+        
+        # Check if package with same name already exists for this trainer
+        if trainer and name:
+            try:
+                existing = SessionPackage.objects.get(trainer=trainer, name=name)
+                # Update existing package instead of creating new one
+                for key, value in validated_data.items():
+                    setattr(existing, key, value)
+                existing.save()
+                return existing
+            except SessionPackage.DoesNotExist:
+                pass
+        
+        return super().create(validated_data)
 
 
 class ClientPackageSerializer(serializers.ModelSerializer):

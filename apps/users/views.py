@@ -99,15 +99,29 @@ class UserViewSet(viewsets.ModelViewSet):
             pass
         return Response({'message': 'Logged out successfully'}, status=status.HTTP_200_OK)
     
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=['get', 'patch'], permission_classes=[IsAuthenticated])
     def me(self, request):
         """
-        Get current user profile.
+        Get or update current user profile.
         
         GET /api/users/me/
+        PATCH /api/users/me/
+        {
+            "first_name": "Jane",
+            "last_name": "Smith",
+            "phone_number": "+1234567890"
+        }
         """
-        serializer = self.get_serializer(request.user)
-        return Response(serializer.data)
+        if request.method == 'PATCH':
+            user = request.user
+            serializer = self.get_serializer(user, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            serializer = self.get_serializer(request.user)
+            return Response(serializer.data)
     
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def change_password(self, request):

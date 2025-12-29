@@ -15,7 +15,7 @@ urlpatterns = [
     path('api/', include('apps.clients.urls')),
     path('api/', include('apps.bookings.urls')),
     path('api/', include('apps.packages.urls')),
-    path('api/', include('apps.payments.urls')),
+    path('api/', include('apps.payments.urls')),  # Includes subscriptions, payments, and webhooks
     path('api/', include('apps.notifications.urls')),
     path('api/', include('apps.analytics.urls')),
 ]
