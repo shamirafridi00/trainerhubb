@@ -185,14 +185,19 @@ def bookings_upcoming_partial(request):
     """Upcoming bookings partial for dashboard."""
     try:
         trainer = request.user.trainer_profile
-    except Trainer.DoesNotExist:
-        return render(request, 'partials/bookings/upcoming.html', {'bookings': []})
-    
-    bookings = Booking.objects.filter(
-        trainer=trainer,
-        status__in=['pending', 'confirmed'],
-        start_time__gte=timezone.now()
-    ).select_related('client').order_by('start_time')[:5]
+        bookings = Booking.objects.filter(
+            trainer=trainer,
+            status__in=['pending', 'confirmed'],
+            start_time__gte=timezone.now()
+        ).select_related('client').order_by('start_time')[:5]
+    except (Trainer.DoesNotExist, AttributeError):
+        bookings = []
+    except Exception as e:
+        # Log error but don't crash
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in bookings_upcoming_partial: {e}")
+        bookings = []
     
     return render(request, 'partials/bookings/upcoming.html', {'bookings': bookings})
 
@@ -202,10 +207,15 @@ def clients_recent_partial(request):
     """Recent clients partial for dashboard."""
     try:
         trainer = request.user.trainer_profile
-    except Trainer.DoesNotExist:
-        return render(request, 'partials/clients/recent.html', {'clients': []})
-    
-    clients = Client.objects.filter(trainer=trainer).order_by('-created_at')[:5]
+        clients = Client.objects.filter(trainer=trainer).order_by('-created_at')[:5]
+    except (Trainer.DoesNotExist, AttributeError):
+        clients = []
+    except Exception as e:
+        # Log error but don't crash
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in clients_recent_partial: {e}")
+        clients = []
     
     return render(request, 'partials/clients/recent.html', {'clients': clients})
 
@@ -215,7 +225,7 @@ def analytics_revenue_chart(request):
     """Revenue chart partial for dashboard."""
     try:
         trainer = request.user.trainer_profile
-    except Trainer.DoesNotExist:
+    except (Trainer.DoesNotExist, AttributeError):
         return render(request, 'partials/analytics/revenue_chart.html', {
             'total_revenue': 0,
             'monthly_revenue': 0,
@@ -223,61 +233,73 @@ def analytics_revenue_chart(request):
             'monthly_data': []
         })
     
-    now = timezone.now()
-    this_month = now.date().replace(day=1)
-    
-    # Get payment data
-    payments = Payment.objects.filter(subscription__trainer=trainer, status='completed')
-    total_revenue = payments.aggregate(Sum('amount'))['amount__sum'] or 0
-    monthly_revenue = payments.filter(created_at__gte=this_month).aggregate(Sum('amount'))['amount__sum'] or 0
-    
-    # Calculate average booking value
-    bookings = Booking.objects.filter(trainer=trainer, status='completed')
-    average_booking_value = 0
-    if bookings.exists():
-        average_booking_value = float(total_revenue) / bookings.count()
-    
-    # Get last 6 months of revenue data
-    monthly_data = []
-    max_revenue = 0
-    
-    for i in range(6):
-        month_start = (this_month - timedelta(days=30*i)).replace(day=1)
-        if i > 0:
-            month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
-        else:
-            month_end = now.date()
+    try:
+        now = timezone.now()
+        this_month = now.date().replace(day=1)
         
-        month_revenue = payments.filter(
-            created_at__date__gte=month_start,
-            created_at__date__lte=month_end
-        ).aggregate(Sum('amount'))['amount__sum'] or 0
+        # Get payment data
+        payments = Payment.objects.filter(subscription__trainer=trainer, status='completed')
+        total_revenue = payments.aggregate(Sum('amount'))['amount__sum'] or 0
+        monthly_revenue = payments.filter(created_at__gte=this_month).aggregate(Sum('amount'))['amount__sum'] or 0
         
-        if month_revenue > max_revenue:
-            max_revenue = float(month_revenue)
+        # Calculate average booking value
+        bookings = Booking.objects.filter(trainer=trainer, status='completed')
+        average_booking_value = 0
+        if bookings.exists():
+            average_booking_value = float(total_revenue) / bookings.count()
         
-        monthly_data.append({
-            'month': month_start.strftime('%B %Y'),
-            'month_short': month_start.strftime('%b'),
-            'revenue': float(month_revenue)
+        # Get last 6 months of revenue data
+        monthly_data = []
+        max_revenue = 0
+        
+        for i in range(6):
+            month_start = (this_month - timedelta(days=30*i)).replace(day=1)
+            if i > 0:
+                month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+            else:
+                month_end = now.date()
+            
+            month_revenue = payments.filter(
+                created_at__date__gte=month_start,
+                created_at__date__lte=month_end
+            ).aggregate(Sum('amount'))['amount__sum'] or 0
+            
+            if month_revenue > max_revenue:
+                max_revenue = float(month_revenue)
+            
+            monthly_data.append({
+                'month': month_start.strftime('%B %Y'),
+                'month_short': month_start.strftime('%b'),
+                'revenue': float(month_revenue)
+            })
+        
+        # Reverse to show oldest first
+        monthly_data.reverse()
+        
+        # Calculate percentages for bar chart
+        for data in monthly_data:
+            if max_revenue > 0:
+                data['percentage'] = int((data['revenue'] / max_revenue) * 100)
+            else:
+                data['percentage'] = 0
+        
+        return render(request, 'partials/analytics/revenue_chart.html', {
+            'total_revenue': total_revenue,
+            'monthly_revenue': monthly_revenue,
+            'average_booking_value': average_booking_value,
+            'monthly_data': monthly_data
         })
-    
-    # Reverse to show oldest first
-    monthly_data.reverse()
-    
-    # Calculate percentages for bar chart
-    for data in monthly_data:
-        if max_revenue > 0:
-            data['percentage'] = int((data['revenue'] / max_revenue) * 100)
-        else:
-            data['percentage'] = 0
-    
-    return render(request, 'partials/analytics/revenue_chart.html', {
-        'total_revenue': total_revenue,
-        'monthly_revenue': monthly_revenue,
-        'average_booking_value': average_booking_value,
-        'monthly_data': monthly_data
-    })
+    except Exception as e:
+        # Log error but return empty data
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in analytics_revenue_chart: {e}")
+        return render(request, 'partials/analytics/revenue_chart.html', {
+            'total_revenue': 0,
+            'monthly_revenue': 0,
+            'average_booking_value': 0,
+            'monthly_data': []
+        })
 
 
 @login_required
