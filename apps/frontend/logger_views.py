@@ -69,10 +69,20 @@ def log_activity(request):
     """Log an activity from frontend."""
     try:
         # Handle both JSON and form data
-        if request.content_type == 'application/json':
-            data = json.loads(request.body)
+        content_type = request.content_type or ''
+        
+        if 'application/json' in content_type:
+            try:
+                data = json.loads(request.body.decode('utf-8'))
+            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                return JsonResponse({'error': f'Invalid JSON: {str(e)}'}, status=400)
         else:
-            data = request.POST.dict()
+            # Try to parse as JSON first (some browsers send JSON with wrong content-type)
+            try:
+                data = json.loads(request.body.decode('utf-8'))
+            except:
+                # Fall back to form data
+                data = request.POST.dict()
         
         activity_type = data.get('type', 'click')
         message = data.get('message', 'User interaction')
@@ -85,6 +95,10 @@ def log_activity(request):
             except:
                 details = {}
         
+        # Ensure details is a dict
+        if not isinstance(details, dict):
+            details = {}
+        
         ActivityLogger.log(
             activity_type=activity_type,
             message=message,
@@ -95,9 +109,11 @@ def log_activity(request):
         return JsonResponse({'status': 'ok', 'logged': True})
     except Exception as e:
         import traceback
+        import logging
+        logger = logging.getLogger('user_interactions')
         error_msg = str(e)
-        traceback.print_exc()
-        return JsonResponse({'error': error_msg, 'traceback': traceback.format_exc()}, status=400)
+        logger.error(f'Error logging activity: {error_msg}', exc_info=True)
+        return JsonResponse({'error': error_msg}, status=400)
 
 
 @login_required
