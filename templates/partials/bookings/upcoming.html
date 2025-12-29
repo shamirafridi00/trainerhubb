@@ -3,7 +3,7 @@
     <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
         <div class="flex-1">
             <div class="flex items-center gap-2 mb-1">
-                <h4 class="text-sm font-semibold text-gray-900">{{ booking.client_name }}</h4>
+                <h4 class="text-sm font-semibold text-gray-900">{{ booking.client.get_full_name }}</h4>
                 <span class="px-2 py-0.5 text-xs font-medium rounded-full
                     {% if booking.status == 'confirmed' %}bg-green-100 text-green-800
                     {% else %}bg-yellow-100 text-yellow-800{% endif %}">
