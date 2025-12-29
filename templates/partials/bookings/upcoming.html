@@ -1,0 +1,32 @@
+<div class="space-y-3">
+    {% for booking in bookings %}
+    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+        <div class="flex-1">
+            <div class="flex items-center gap-2 mb-1">
+                <h4 class="text-sm font-semibold text-gray-900">{{ booking.client_name }}</h4>
+                <span class="px-2 py-0.5 text-xs font-medium rounded-full
+                    {% if booking.status == 'confirmed' %}bg-green-100 text-green-800
+                    {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                    {{ booking.status|title }}
+                </span>
+            </div>
+            <div class="flex items-center gap-3 text-xs text-gray-600">
+                <span>{{ booking.start_time|date:"M d" }}</span>
+                <span>{{ booking.start_time|time:"g:i A" }}</span>
+            </div>
+        </div>
+        <a href="{% url 'frontend:bookings_list' %}" 
+           class="text-xs text-indigo-600 hover:text-indigo-700">
+            View →
+        </a>
+    </div>
+    {% empty %}
+    <div class="text-center py-8">
+        <svg class="mx-auto h-8 w-8 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        <p class="text-sm text-gray-500">No upcoming bookings</p>
+    </div>
+    {% endfor %}
+</div>
+

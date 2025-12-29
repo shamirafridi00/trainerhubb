@@ -4,16 +4,75 @@
 
 {% block content %}
 <div class="space-y-6">
-    <div class="flex justify-between items-center">
+    <!-- Page Header -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
             <h1 class="text-3xl font-bold text-gray-900">Dashboard</h1>
             <p class="mt-1 text-sm text-gray-500">Welcome back, {{ user.first_name|default:user.email }}!</p>
         </div>
+        <div class="flex space-x-3">
+            <a href="{% url 'frontend:bookings_list' %}"
+               class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                New Booking
+            </a>
+        </div>
     </div>
     
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+         hx-get="{% url 'frontend:dashboard_stats' %}"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <!-- Loading state -->
+        <div class="animate-pulse bg-gray-200 rounded-lg h-32"></div>
+        <div class="animate-pulse bg-gray-200 rounded-lg h-32"></div>
+        <div class="animate-pulse bg-gray-200 rounded-lg h-32"></div>
+        <div class="animate-pulse bg-gray-200 rounded-lg h-32"></div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Upcoming Bookings -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">Upcoming Bookings</h2>
+                <a href="{% url 'frontend:bookings_list' %}" class="text-sm text-indigo-600 hover:text-indigo-700">View all</a>
+            </div>
+            <div hx-get="{% url 'frontend:bookings_upcoming_partial' %}"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <div class="animate-pulse space-y-3">
+                    <div class="h-16 bg-gray-200 rounded"></div>
+                    <div class="h-16 bg-gray-200 rounded"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Clients -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">Recent Clients</h2>
+                <a href="{% url 'frontend:clients_list' %}" class="text-sm text-indigo-600 hover:text-indigo-700">View all</a>
+            </div>
+            <div hx-get="{% url 'frontend:clients_recent_partial' %}"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <div class="animate-pulse space-y-3">
+                    <div class="h-12 bg-gray-200 rounded"></div>
+                    <div class="h-12 bg-gray-200 rounded"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Revenue Overview -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <p class="text-gray-600">Dashboard content will be implemented in Step 9.4</p>
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Revenue Overview</h2>
+        <div hx-get="{% url 'frontend:analytics_revenue_chart' %}"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="animate-pulse h-64 bg-gray-200 rounded"></div>
+        </div>
     </div>
 </div>
 {% endblock %}
-

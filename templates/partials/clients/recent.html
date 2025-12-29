@@ -1,0 +1,29 @@
+<div class="space-y-3">
+    {% for client in clients %}
+    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+        <div class="flex items-center gap-3">
+            <div class="h-10 w-10 rounded-full bg-indigo-600 flex items-center justify-center">
+                <span class="text-white font-medium text-sm">
+                    {{ client.first_name|first|upper }}{{ client.last_name|first|upper }}
+                </span>
+            </div>
+            <div>
+                <h4 class="text-sm font-semibold text-gray-900">{{ client.get_full_name }}</h4>
+                <p class="text-xs text-gray-500">{{ client.email }}</p>
+            </div>
+        </div>
+        <a href="{% url 'frontend:clients_list' %}" 
+           class="text-xs text-indigo-600 hover:text-indigo-700">
+            View →
+        </a>
+    </div>
+    {% empty %}
+    <div class="text-center py-8">
+        <svg class="mx-auto h-8 w-8 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+        <p class="text-sm text-gray-500">No clients yet</p>
+    </div>
+    {% endfor %}
+</div>
+

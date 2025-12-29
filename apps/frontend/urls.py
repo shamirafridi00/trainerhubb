@@ -10,6 +10,12 @@ urlpatterns = [
     path('', views.landing, name='landing'),
     path('dashboard/', views.dashboard, name='dashboard'),
     
+    # Dashboard
+    path('dashboard/stats/', views.dashboard_stats, name='dashboard_stats'),
+    path('dashboard/bookings-upcoming/', views.bookings_upcoming_partial, name='bookings_upcoming_partial'),
+    path('dashboard/clients-recent/', views.clients_recent_partial, name='clients_recent_partial'),
+    path('dashboard/revenue-chart/', views.analytics_revenue_chart, name='analytics_revenue_chart'),
+    
     # Bookings
     path('bookings/', views.bookings_list, name='bookings_list'),
     path('bookings/partial/', views.bookings_list_partial, name='bookings_list_partial'),

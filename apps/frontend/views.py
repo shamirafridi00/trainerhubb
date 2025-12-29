@@ -13,7 +13,10 @@ from datetime import datetime, timedelta
 
 from apps.bookings.models import Booking
 from apps.clients.models import Client
+from apps.payments.models import Payment
 from apps.trainers.models import Trainer
+from django.db.models import Sum, Count
+from datetime import timedelta
 
 
 def landing(request):
@@ -27,6 +30,185 @@ def landing(request):
 def dashboard(request):
     """Main dashboard page."""
     return render(request, 'pages/dashboard.html')
+
+
+@login_required
+def dashboard_stats(request):
+    """Dashboard stats partial for HTMX."""
+    try:
+        trainer = request.user.trainer_profile
+    except Trainer.DoesNotExist:
+        return render(request, 'partials/dashboard/stats.html', {'stats': []})
+    
+    now = timezone.now()
+    today = now.date()
+    this_month = today.replace(day=1)
+    last_month = (this_month - timedelta(days=1)).replace(day=1)
+    
+    # Get stats
+    bookings = Booking.objects.filter(trainer=trainer)
+    clients = Client.objects.filter(trainer=trainer)
+    payments = Payment.objects.filter(subscription__trainer=trainer, status='completed')
+    
+    # Calculate current month stats
+    total_bookings = bookings.count()
+    upcoming_bookings = bookings.filter(
+        status__in=['pending', 'confirmed'],
+        start_time__gte=now
+    ).count()
+    total_clients = clients.count()
+    total_revenue = payments.aggregate(Sum('amount'))['amount__sum'] or 0
+    
+    # Calculate last month for comparison
+    last_month_bookings = bookings.filter(
+        created_at__gte=last_month,
+        created_at__lt=this_month
+    ).count()
+    
+    last_month_clients = clients.filter(
+        created_at__gte=last_month,
+        created_at__lt=this_month
+    ).count()
+    
+    # Calculate percentage changes
+    booking_change = 0
+    if last_month_bookings > 0:
+        booking_change = round(((total_bookings - last_month_bookings) / last_month_bookings) * 100, 1)
+    
+    client_change = 0
+    if last_month_clients > 0:
+        client_change = round(((total_clients - last_month_clients) / last_month_clients) * 100, 1)
+    
+    stats = [
+        {
+            'label': 'Total Bookings',
+            'value': total_bookings,
+            'color': 'indigo',
+            'icon': 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+            'change': booking_change
+        },
+        {
+            'label': 'Upcoming',
+            'value': upcoming_bookings,
+            'color': 'green',
+            'icon': 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+        },
+        {
+            'label': 'Total Clients',
+            'value': total_clients,
+            'color': 'purple',
+            'icon': 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z',
+            'change': client_change
+        },
+        {
+            'label': 'Total Revenue',
+            'value': f"${total_revenue:,.2f}",
+            'color': 'pink',
+            'icon': 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+        },
+    ]
+    
+    return render(request, 'partials/dashboard/stats.html', {'stats': stats})
+
+
+@login_required
+def bookings_upcoming_partial(request):
+    """Upcoming bookings partial for dashboard."""
+    try:
+        trainer = request.user.trainer_profile
+    except Trainer.DoesNotExist:
+        return render(request, 'partials/bookings/upcoming.html', {'bookings': []})
+    
+    bookings = Booking.objects.filter(
+        trainer=trainer,
+        status__in=['pending', 'confirmed'],
+        start_time__gte=timezone.now()
+    ).select_related('client').order_by('start_time')[:5]
+    
+    return render(request, 'partials/bookings/upcoming.html', {'bookings': bookings})
+
+
+@login_required
+def clients_recent_partial(request):
+    """Recent clients partial for dashboard."""
+    try:
+        trainer = request.user.trainer_profile
+    except Trainer.DoesNotExist:
+        return render(request, 'partials/clients/recent.html', {'clients': []})
+    
+    clients = Client.objects.filter(trainer=trainer).order_by('-created_at')[:5]
+    
+    return render(request, 'partials/clients/recent.html', {'clients': clients})
+
+
+@login_required
+def analytics_revenue_chart(request):
+    """Revenue chart partial for dashboard."""
+    try:
+        trainer = request.user.trainer_profile
+    except Trainer.DoesNotExist:
+        return render(request, 'partials/analytics/revenue_chart.html', {
+            'total_revenue': 0,
+            'monthly_revenue': 0,
+            'average_booking_value': 0,
+            'monthly_data': []
+        })
+    
+    now = timezone.now()
+    this_month = now.date().replace(day=1)
+    
+    # Get payment data
+    payments = Payment.objects.filter(subscription__trainer=trainer, status='completed')
+    total_revenue = payments.aggregate(Sum('amount'))['amount__sum'] or 0
+    monthly_revenue = payments.filter(created_at__gte=this_month).aggregate(Sum('amount'))['amount__sum'] or 0
+    
+    # Calculate average booking value
+    bookings = Booking.objects.filter(trainer=trainer, status='completed')
+    average_booking_value = 0
+    if bookings.exists():
+        average_booking_value = float(total_revenue) / bookings.count()
+    
+    # Get last 6 months of revenue data
+    monthly_data = []
+    max_revenue = 0
+    
+    for i in range(6):
+        month_start = (this_month - timedelta(days=30*i)).replace(day=1)
+        if i > 0:
+            month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+        else:
+            month_end = now.date()
+        
+        month_revenue = payments.filter(
+            created_at__date__gte=month_start,
+            created_at__date__lte=month_end
+        ).aggregate(Sum('amount'))['amount__sum'] or 0
+        
+        if month_revenue > max_revenue:
+            max_revenue = float(month_revenue)
+        
+        monthly_data.append({
+            'month': month_start.strftime('%B %Y'),
+            'month_short': month_start.strftime('%b'),
+            'revenue': float(month_revenue)
+        })
+    
+    # Reverse to show oldest first
+    monthly_data.reverse()
+    
+    # Calculate percentages for bar chart
+    for data in monthly_data:
+        if max_revenue > 0:
+            data['percentage'] = int((data['revenue'] / max_revenue) * 100)
+        else:
+            data['percentage'] = 0
+    
+    return render(request, 'partials/analytics/revenue_chart.html', {
+        'total_revenue': total_revenue,
+        'monthly_revenue': monthly_revenue,
+        'average_booking_value': average_booking_value,
+        'monthly_data': monthly_data
+    })
 
 
 @login_required
