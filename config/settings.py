@@ -203,6 +203,8 @@ TWILIO_PHONE_NUMBER = config('TWILIO_PHONE_NUMBER', default='')
 PADDLE_VENDOR_ID = config('PADDLE_VENDOR_ID', default='')
 PADDLE_API_KEY = config('PADDLE_API_KEY', default='')
 PADDLE_WEBHOOK_SECRET = config('PADDLE_WEBHOOK_SECRET', default='')
+PADDLE_PRODUCT_ID = config('PADDLE_PRODUCT_ID', default='')
+PADDLE_NOTIFICATION_SET_ID = config('PADDLE_NOTIFICATION_SET_ID', default='')
 
 # Logging
 LOGGING = {
