@@ -31,7 +31,7 @@ class AvailabilitySlotViewSet(viewsets.ModelViewSet):
         trainer = self.request.user.trainer_profile
         serializer.save(trainer=trainer)
     
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='available-slots')
     def available_slots(self, request):
         """
         Get available slots for a trainer within date range.

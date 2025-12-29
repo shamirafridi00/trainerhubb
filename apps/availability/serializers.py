@@ -10,7 +10,7 @@ class AvailabilitySlotSerializer(serializers.ModelSerializer):
     class Meta:
         model = AvailabilitySlot
         fields = ['id', 'trainer', 'day_of_week', 'day_display', 'start_time', 'end_time', 'is_recurring', 'is_active', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        read_only_fields = ['id', 'trainer', 'created_at']
     
     def validate(self, data):
         """Validate time slots."""
@@ -25,7 +25,7 @@ class TrainerBreakSerializer(serializers.ModelSerializer):
     class Meta:
         model = TrainerBreak
         fields = ['id', 'trainer', 'start_date', 'end_date', 'reason', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        read_only_fields = ['id', 'trainer', 'created_at']
     
     def validate(self, data):
         """Validate dates."""
