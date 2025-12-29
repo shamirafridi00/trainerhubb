@@ -4,6 +4,7 @@
 
 {% block content %}
 <div class="space-y-6">
+    <!-- Header -->
     <div class="flex justify-between items-center">
         <div>
             <h1 class="text-3xl font-bold text-gray-900">Settings</h1>
@@ -11,9 +12,83 @@
         </div>
     </div>
     
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <p class="text-gray-600">Settings page will be implemented in Step 9.8</p>
+    <!-- Settings Tabs -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div class="border-b border-gray-200">
+            <nav class="flex -mb-px" aria-label="Tabs">
+                <button onclick="showTab('profile')" 
+                        id="tab-profile"
+                        class="tab-button px-6 py-3 text-sm font-medium border-b-2 border-indigo-500 text-indigo-600">
+                    Profile
+                </button>
+                <button onclick="showTab('subscription')" 
+                        id="tab-subscription"
+                        class="tab-button px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    Subscription
+                </button>
+                <button onclick="showTab('notifications')" 
+                        id="tab-notifications"
+                        class="tab-button px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    Notifications
+                </button>
+            </nav>
+        </div>
+        
+        <!-- Profile Tab -->
+        <div id="tab-content-profile" class="tab-content p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Profile Information</h2>
+            <div hx-get="{% url 'frontend:settings_profile_form' %}"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <div class="animate-pulse space-y-4">
+                    <div class="h-12 bg-gray-200 rounded"></div>
+                    <div class="h-12 bg-gray-200 rounded"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Subscription Tab -->
+        <div id="tab-content-subscription" class="tab-content p-6 hidden">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Subscription Management</h2>
+            <div hx-get="{% url 'frontend:settings_subscription_info' %}"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <div class="animate-pulse h-32 bg-gray-200 rounded"></div>
+            </div>
+        </div>
+        
+        <!-- Notifications Tab -->
+        <div id="tab-content-notifications" class="tab-content p-6 hidden">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Notification Preferences</h2>
+            <div hx-get="{% url 'frontend:settings_notifications_form' %}"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <div class="animate-pulse h-32 bg-gray-200 rounded"></div>
+            </div>
+        </div>
     </div>
 </div>
-{% endblock %}
 
+<script>
+function showTab(tabName) {
+    // Hide all tab contents
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.add('hidden');
+    });
+    
+    // Remove active state from all tabs
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.classList.remove('border-indigo-500', 'text-indigo-600');
+        button.classList.add('border-transparent', 'text-gray-500');
+    });
+    
+    // Show selected tab content
+    document.getElementById(`tab-content-${tabName}`).classList.remove('hidden');
+    
+    // Activate selected tab
+    const activeTab = document.getElementById(`tab-${tabName}`);
+    activeTab.classList.remove('border-transparent', 'text-gray-500');
+    activeTab.classList.add('border-indigo-500', 'text-indigo-600');
+}
+</script>
+{% endblock %}

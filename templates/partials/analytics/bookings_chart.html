@@ -1,0 +1,35 @@
+<div class="space-y-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="bg-blue-50 rounded-lg p-4">
+            <p class="text-sm font-medium text-blue-600 mb-1">Total Bookings</p>
+            <p class="text-2xl font-bold text-gray-900">{{ total_bookings }}</p>
+        </div>
+        <div class="bg-green-50 rounded-lg p-4">
+            <p class="text-sm font-medium text-green-600 mb-1">Completed</p>
+            <p class="text-2xl font-bold text-gray-900">{{ completed_bookings }}</p>
+        </div>
+        <div class="bg-yellow-50 rounded-lg p-4">
+            <p class="text-sm font-medium text-yellow-600 mb-1">Upcoming</p>
+            <p class="text-2xl font-bold text-gray-900">{{ upcoming_bookings }}</p>
+        </div>
+    </div>
+    
+    <!-- Status breakdown -->
+    <div class="space-y-2">
+        <h3 class="text-sm font-medium text-gray-700 mb-4">Status Breakdown</h3>
+        <div class="space-y-2">
+            {% for status_data in status_breakdown %}
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-600">{{ status_data.status|title }}</span>
+                <div class="flex items-center gap-2">
+                    <div class="w-32 bg-gray-200 rounded-full h-2">
+                        <div class="bg-indigo-600 h-2 rounded-full" style="width: {{ status_data.percentage }}%"></div>
+                    </div>
+                    <span class="text-sm font-medium text-gray-900 w-8 text-right">{{ status_data.count }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+

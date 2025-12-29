@@ -12,12 +12,12 @@ from django.db.models import Q
 from datetime import datetime, timedelta
 
 from apps.bookings.models import Booking
-from apps.clients.models import Client
-from apps.packages.models import SessionPackage
-from apps.payments.models import Payment
+from apps.clients.models import Client, ClientNote
+from apps.packages.models import SessionPackage, ClientPackage
+from apps.payments.models import Payment, Subscription
 from apps.notifications.models import Notification
 from apps.trainers.models import Trainer
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Avg, Q
 from datetime import timedelta
 
 
@@ -596,6 +596,269 @@ def notifications_mark_read(request, notification_id):
 def settings(request):
     """Settings page."""
     return render(request, 'pages/settings/index.html')
+
+
+# Client detail and management views
+@login_required
+def clients_detail_page(request, client_id):
+    """Client detail page."""
+    client = get_object_or_404(Client, id=client_id, trainer=request.user.trainer_profile)
+    return render(request, 'pages/clients/detail.html', {'client': client})
+
+
+@login_required
+def clients_packages_partial(request, client_id):
+    """Client packages partial."""
+    client = get_object_or_404(Client, id=client_id, trainer=request.user.trainer_profile)
+    client_packages = ClientPackage.objects.filter(client=client).select_related('session_package').order_by('-purchased_at')
+    return render(request, 'partials/clients/packages.html', {'client_packages': client_packages})
+
+
+@login_required
+def clients_notes_partial(request, client_id):
+    """Client notes partial."""
+    client = get_object_or_404(Client, id=client_id, trainer=request.user.trainer_profile)
+    notes = ClientNote.objects.filter(client=client).select_related('created_by').order_by('-created_at')[:20]
+    return render(request, 'partials/clients/notes.html', {'notes': notes})
+
+
+@login_required
+def clients_bookings_partial(request, client_id):
+    """Client recent bookings partial."""
+    client = get_object_or_404(Client, id=client_id, trainer=request.user.trainer_profile)
+    bookings = Booking.objects.filter(client=client).order_by('-start_time')[:5]
+    return render(request, 'partials/bookings/upcoming.html', {'bookings': bookings})
+
+
+@login_required
+def clients_assign_package_form(request, client_id):
+    """Assign package form."""
+    client = get_object_or_404(Client, id=client_id, trainer=request.user.trainer_profile)
+    packages = SessionPackage.objects.filter(trainer=client.trainer, is_active=True)
+    return render(request, 'partials/clients/assign_package_form.html', {'client': client, 'packages': packages})
+
+
+@login_required
+@require_http_methods(["POST"])
+def clients_assign_package(request, client_id):
+    """Assign package to client."""
+    client = get_object_or_404(Client, id=client_id, trainer=request.user.trainer_profile)
+    package_id = request.POST.get('package')
+    expiry_date_str = request.POST.get('expiry_date')
+    
+    try:
+        package = SessionPackage.objects.get(id=package_id, trainer=client.trainer)
+        expiry_date = None
+        if expiry_date_str:
+            expiry_date = datetime.strptime(expiry_date_str, '%Y-%m-%d').date()
+        
+        ClientPackage.objects.create(
+            client=client,
+            session_package=package,
+            sessions_remaining=package.sessions_count,
+            expiry_date=expiry_date
+        )
+        
+        return clients_packages_partial(request, client_id)
+    except SessionPackage.DoesNotExist:
+        return render(request, 'partials/clients/assign_package_form.html', {
+            'client': client,
+            'packages': SessionPackage.objects.filter(trainer=client.trainer, is_active=True),
+            'error': 'Package not found'
+        })
+
+
+@login_required
+def clients_add_note_form(request, client_id):
+    """Add note form."""
+    client = get_object_or_404(Client, id=client_id, trainer=request.user.trainer_profile)
+    return render(request, 'partials/clients/add_note_form.html', {'client': client})
+
+
+@login_required
+@require_http_methods(["POST"])
+def clients_add_note(request, client_id):
+    """Add note to client."""
+    client = get_object_or_404(Client, id=client_id, trainer=request.user.trainer_profile)
+    content = request.POST.get('content')
+    
+    if content:
+        ClientNote.objects.create(
+            client=client,
+            content=content,
+            created_by=request.user
+        )
+        return clients_notes_partial(request, client_id)
+    
+    return render(request, 'partials/clients/add_note_form.html', {
+        'client': client,
+        'error': 'Note content is required'
+    })
+
+
+# Analytics views
+@login_required
+def analytics_summary(request):
+    """Analytics summary stats."""
+    try:
+        trainer = request.user.trainer_profile
+    except Trainer.DoesNotExist:
+        return render(request, 'partials/analytics/summary.html', {'stats': []})
+    
+    bookings = Booking.objects.filter(trainer=trainer)
+    clients = Client.objects.filter(trainer=trainer)
+    payments = Payment.objects.filter(subscription__trainer=trainer, status='completed')
+    
+    stats = [
+        {
+            'label': 'Total Revenue',
+            'value': f"${payments.aggregate(Sum('amount'))['amount__sum'] or 0:,.2f}",
+            'color': 'pink',
+            'icon': 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+        },
+        {
+            'label': 'Total Bookings',
+            'value': bookings.count(),
+            'color': 'indigo',
+            'icon': 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+        },
+        {
+            'label': 'Total Clients',
+            'value': clients.count(),
+            'color': 'purple',
+            'icon': 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z',
+        },
+        {
+            'label': 'Active Packages',
+            'value': ClientPackage.objects.filter(client__trainer=trainer, sessions_remaining__gt=0).count(),
+            'color': 'green',
+            'icon': 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
+        },
+    ]
+    
+    return render(request, 'partials/analytics/summary.html', {'stats': stats})
+
+
+@login_required
+def analytics_bookings_chart(request):
+    """Bookings statistics chart."""
+    try:
+        trainer = request.user.trainer_profile
+    except Trainer.DoesNotExist:
+        return render(request, 'partials/analytics/bookings_chart.html', {
+            'total_bookings': 0,
+            'completed_bookings': 0,
+            'upcoming_bookings': 0,
+            'status_breakdown': []
+        })
+    
+    bookings = Booking.objects.filter(trainer=trainer)
+    total_bookings = bookings.count()
+    completed_bookings = bookings.filter(status='completed').count()
+    upcoming_bookings = bookings.filter(status__in=['pending', 'confirmed'], start_time__gte=timezone.now()).count()
+    
+    # Status breakdown
+    status_counts = bookings.values('status').annotate(count=Count('id')).order_by('-count')
+    total = sum(s['count'] for s in status_counts)
+    
+    status_breakdown = []
+    for status_data in status_counts:
+        percentage = (status_data['count'] / total * 100) if total > 0 else 0
+        status_breakdown.append({
+            'status': status_data['status'],
+            'count': status_data['count'],
+            'percentage': round(percentage, 1)
+        })
+    
+    return render(request, 'partials/analytics/bookings_chart.html', {
+        'total_bookings': total_bookings,
+        'completed_bookings': completed_bookings,
+        'upcoming_bookings': upcoming_bookings,
+        'status_breakdown': status_breakdown
+    })
+
+
+@login_required
+def analytics_clients_metrics(request):
+    """Client metrics."""
+    try:
+        trainer = request.user.trainer_profile
+    except Trainer.DoesNotExist:
+        return render(request, 'partials/analytics/clients_metrics.html', {
+            'total_clients': 0,
+            'active_clients': 0,
+            'new_clients': 0,
+            'last_month_clients': 0,
+            'avg_sessions_per_client': 0
+        })
+    
+    now = timezone.now()
+    this_month = now.date().replace(day=1)
+    last_month = (this_month - timedelta(days=1)).replace(day=1)
+    
+    clients = Client.objects.filter(trainer=trainer)
+    total_clients = clients.count()
+    active_clients = clients.filter(is_active=True).count()
+    new_clients = clients.filter(created_at__gte=this_month).count()
+    last_month_clients = clients.filter(created_at__gte=last_month, created_at__lt=this_month).count()
+    
+    # Average sessions per client
+    completed_bookings = Booking.objects.filter(trainer=trainer, status='completed')
+    avg_sessions_per_client = 0
+    if total_clients > 0:
+        avg_sessions_per_client = completed_bookings.count() / total_clients
+    
+    return render(request, 'partials/analytics/clients_metrics.html', {
+        'total_clients': total_clients,
+        'active_clients': active_clients,
+        'new_clients': new_clients,
+        'last_month_clients': last_month_clients,
+        'avg_sessions_per_client': avg_sessions_per_client
+    })
+
+
+# Settings views
+@login_required
+def settings_profile_form(request):
+    """Profile settings form."""
+    user = request.user
+    return render(request, 'partials/settings/profile_form.html', {'user': user})
+
+
+@login_required
+@require_http_methods(["POST"])
+def settings_profile_update(request):
+    """Update profile."""
+    user = request.user
+    user.first_name = request.POST.get('first_name', user.first_name)
+    user.last_name = request.POST.get('last_name', user.last_name)
+    user.email = request.POST.get('email', user.email)
+    user.save()
+    
+    return settings_profile_form(request)
+
+
+@login_required
+def settings_subscription_info(request):
+    """Subscription information."""
+    try:
+        trainer = request.user.trainer_profile
+        subscription = Subscription.objects.filter(trainer=trainer, status='active').first()
+    except Trainer.DoesNotExist:
+        subscription = None
+    
+    return render(request, 'partials/settings/subscription_info.html', {'subscription': subscription})
+
+
+@login_required
+def settings_notifications_form(request):
+    """Notification preferences form."""
+    try:
+        trainer = request.user.trainer_profile
+    except Trainer.DoesNotExist:
+        trainer = None
+    
+    return render(request, 'partials/settings/notifications_form.html', {'trainer': trainer})
 
 
 def logout(request):

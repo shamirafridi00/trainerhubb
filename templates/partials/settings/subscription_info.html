@@ -1,0 +1,39 @@
+{% if subscription %}
+<div class="space-y-4">
+    <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-lg font-semibold text-green-900">Active Subscription</h3>
+                <p class="text-sm text-green-700 mt-1">Plan: {{ subscription.plan_name|default:"Premium" }}</p>
+            </div>
+            <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">Active</span>
+        </div>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <p class="text-sm font-medium text-gray-500">Subscription ID</p>
+            <p class="text-sm text-gray-900 mt-1">{{ subscription.paddle_subscription_id|truncatechars:20 }}</p>
+        </div>
+        <div>
+            <p class="text-sm font-medium text-gray-500">Status</p>
+            <p class="text-sm text-gray-900 mt-1">{{ subscription.get_status_display }}</p>
+        </div>
+        {% if subscription.current_period_end %}
+        <div>
+            <p class="text-sm font-medium text-gray-500">Next Billing Date</p>
+            <p class="text-sm text-gray-900 mt-1">{{ subscription.current_period_end|date:"F d, Y" }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="text-center py-12">
+    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    <h3 class="mt-2 text-sm font-medium text-gray-900">No Active Subscription</h3>
+    <p class="mt-1 text-sm text-gray-500">Subscribe to unlock all features.</p>
+</div>
+{% endif %}
+

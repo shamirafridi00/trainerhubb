@@ -1,0 +1,16 @@
+{% for stat in stats %}
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div class="flex items-center justify-between">
+        <div class="flex-1">
+            <p class="text-sm font-medium text-gray-500">{{ stat.label }}</p>
+            <p class="text-3xl font-bold text-gray-900 mt-2">{{ stat.value }}</p>
+        </div>
+        <div class="p-3 {% if stat.color == 'indigo' %}bg-indigo-100{% elif stat.color == 'green' %}bg-green-100{% elif stat.color == 'purple' %}bg-purple-100{% elif stat.color == 'pink' %}bg-pink-100{% else %}bg-gray-100{% endif %} rounded-lg">
+            <svg class="w-6 h-6 {% if stat.color == 'indigo' %}text-indigo-600{% elif stat.color == 'green' %}text-green-600{% elif stat.color == 'purple' %}text-purple-600{% elif stat.color == 'pink' %}text-pink-600{% else %}text-gray-600{% endif %}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ stat.icon }}" />
+            </svg>
+        </div>
+    </div>
+</div>
+{% endfor %}
+

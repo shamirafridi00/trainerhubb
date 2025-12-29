@@ -4,6 +4,7 @@
 
 {% block content %}
 <div class="space-y-6">
+    <!-- Header -->
     <div class="flex justify-between items-center">
         <div>
             <h1 class="text-3xl font-bold text-gray-900">Analytics</h1>
@@ -11,9 +12,48 @@
         </div>
     </div>
     
+    <!-- Summary Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+         hx-get="{% url 'frontend:analytics_summary' %}"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <div class="animate-pulse bg-gray-200 rounded-lg h-32"></div>
+        <div class="animate-pulse bg-gray-200 rounded-lg h-32"></div>
+        <div class="animate-pulse bg-gray-200 rounded-lg h-32"></div>
+        <div class="animate-pulse bg-gray-200 rounded-lg h-32"></div>
+    </div>
+    
+    <!-- Charts Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Revenue Chart -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Revenue Overview</h2>
+            <div hx-get="{% url 'frontend:analytics_revenue_chart' %}"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <div class="animate-pulse h-64 bg-gray-200 rounded"></div>
+            </div>
+        </div>
+        
+        <!-- Bookings Chart -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Booking Statistics</h2>
+            <div hx-get="{% url 'frontend:analytics_bookings_chart' %}"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <div class="animate-pulse h-64 bg-gray-200 rounded"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Client Metrics -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <p class="text-gray-600">Analytics dashboard will be implemented in Step 9.8</p>
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Client Metrics</h2>
+        <div hx-get="{% url 'frontend:analytics_clients_metrics' %}"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="animate-pulse h-48 bg-gray-200 rounded"></div>
+        </div>
     </div>
 </div>
 {% endblock %}
-

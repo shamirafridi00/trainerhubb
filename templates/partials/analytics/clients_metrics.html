@@ -1,0 +1,20 @@
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div class="bg-indigo-50 rounded-lg p-6">
+        <p class="text-sm font-medium text-indigo-600 mb-1">Total Clients</p>
+        <p class="text-3xl font-bold text-gray-900">{{ total_clients }}</p>
+        <p class="text-xs text-gray-500 mt-2">{{ active_clients }} active</p>
+    </div>
+    
+    <div class="bg-purple-50 rounded-lg p-6">
+        <p class="text-sm font-medium text-purple-600 mb-1">New This Month</p>
+        <p class="text-3xl font-bold text-gray-900">{{ new_clients }}</p>
+        <p class="text-xs text-gray-500 mt-2">vs {{ last_month_clients }} last month</p>
+    </div>
+    
+    <div class="bg-pink-50 rounded-lg p-6">
+        <p class="text-sm font-medium text-pink-600 mb-1">Avg Sessions/Client</p>
+        <p class="text-3xl font-bold text-gray-900">{{ avg_sessions_per_client|floatformat:1 }}</p>
+        <p class="text-xs text-gray-500 mt-2">Based on completed bookings</p>
+    </div>
+</div>
+

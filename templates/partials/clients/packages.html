@@ -1,0 +1,23 @@
+<div class="space-y-3">
+    {% for client_package in client_packages %}
+    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+        <div class="flex-1">
+            <h4 class="text-sm font-semibold text-gray-900">{{ client_package.session_package.name }}</h4>
+            <div class="flex items-center gap-3 text-xs text-gray-600 mt-1">
+                <span>{{ client_package.sessions_remaining }} sessions remaining</span>
+                {% if client_package.expiry_date %}
+                <span>Expires: {{ client_package.expiry_date|date:"M d, Y" }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <span class="px-2 py-1 text-xs font-medium rounded-full {% if client_package.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+            {% if client_package.is_active %}Active{% else %}Expired{% endif %}
+        </span>
+    </div>
+    {% empty %}
+    <div class="text-center py-8 text-gray-500">
+        <p class="text-sm">No packages assigned</p>
+    </div>
+    {% endfor %}
+</div>
+

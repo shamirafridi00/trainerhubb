@@ -32,8 +32,16 @@ urlpatterns = [
     path('clients/create-form/', views.clients_create_form, name='clients_create_form'),
     path('clients/create/', views.clients_create, name='clients_create'),
     path('clients/<int:client_id>/', views.clients_detail, name='clients_detail'),
+    path('clients/<int:client_id>/page/', views.clients_detail_page, name='clients_detail_page'),
     path('clients/<int:client_id>/edit-form/', views.clients_edit_form, name='clients_edit_form'),
     path('clients/<int:client_id>/update/', views.clients_update, name='clients_update'),
+    path('clients/<int:client_id>/packages/', views.clients_packages_partial, name='clients_packages_partial'),
+    path('clients/<int:client_id>/notes/', views.clients_notes_partial, name='clients_notes_partial'),
+    path('clients/<int:client_id>/bookings/', views.clients_bookings_partial, name='clients_bookings_partial'),
+    path('clients/<int:client_id>/assign-package-form/', views.clients_assign_package_form, name='clients_assign_package_form'),
+    path('clients/<int:client_id>/assign-package/', views.clients_assign_package, name='clients_assign_package'),
+    path('clients/<int:client_id>/add-note-form/', views.clients_add_note_form, name='clients_add_note_form'),
+    path('clients/<int:client_id>/add-note/', views.clients_add_note, name='clients_add_note'),
     
     # Packages
     path('packages/', views.packages_list, name='packages_list'),
@@ -45,6 +53,9 @@ urlpatterns = [
     
     # Analytics
     path('analytics/', views.analytics_dashboard, name='analytics_dashboard'),
+    path('analytics/summary/', views.analytics_summary, name='analytics_summary'),
+    path('analytics/bookings-chart/', views.analytics_bookings_chart, name='analytics_bookings_chart'),
+    path('analytics/clients-metrics/', views.analytics_clients_metrics, name='analytics_clients_metrics'),
     
     # Notifications
     path('notifications/', views.notifications_list, name='notifications_list'),
@@ -53,5 +64,9 @@ urlpatterns = [
     
     # Settings
     path('settings/', views.settings, name='settings'),
+    path('settings/profile-form/', views.settings_profile_form, name='settings_profile_form'),
+    path('settings/profile-update/', views.settings_profile_update, name='settings_profile_update'),
+    path('settings/subscription-info/', views.settings_subscription_info, name='settings_subscription_info'),
+    path('settings/notifications-form/', views.settings_notifications_form, name='settings_notifications_form'),
 ]
 

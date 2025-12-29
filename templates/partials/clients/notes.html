@@ -1,0 +1,18 @@
+<div class="space-y-4">
+    {% for note in notes %}
+    <div class="border-l-4 border-indigo-500 pl-4 py-2">
+        <div class="flex justify-between items-start mb-1">
+            <p class="text-sm text-gray-900">{{ note.content }}</p>
+            <span class="text-xs text-gray-500 ml-4">{{ note.created_at|timesince }} ago</span>
+        </div>
+        {% if note.created_by %}
+        <p class="text-xs text-gray-500">By {{ note.created_by.get_full_name|default:note.created_by.email }}</p>
+        {% endif %}
+    </div>
+    {% empty %}
+    <div class="text-center py-8 text-gray-500">
+        <p class="text-sm">No notes yet</p>
+    </div>
+    {% endfor %}
+</div>
+
