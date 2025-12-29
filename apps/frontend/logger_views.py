@@ -68,10 +68,22 @@ def logger_viewer(request):
 def log_activity(request):
     """Log an activity from frontend."""
     try:
-        data = json.loads(request.body)
+        # Handle both JSON and form data
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+        
         activity_type = data.get('type', 'click')
         message = data.get('message', 'User interaction')
         details = data.get('details', {})
+        
+        # Parse details if it's a string
+        if isinstance(details, str):
+            try:
+                details = json.loads(details)
+            except:
+                details = {}
         
         ActivityLogger.log(
             activity_type=activity_type,
@@ -80,9 +92,12 @@ def log_activity(request):
             user=request.user.email
         )
         
-        return JsonResponse({'status': 'ok'})
+        return JsonResponse({'status': 'ok', 'logged': True})
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=400)
+        import traceback
+        error_msg = str(e)
+        traceback.print_exc()
+        return JsonResponse({'error': error_msg, 'traceback': traceback.format_exc()}, status=400)
 
 
 @login_required

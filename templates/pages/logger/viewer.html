@@ -86,33 +86,54 @@ function renderActivity(activity) {
 }
 
 function loadActivities() {
-    fetch('{% url "frontend:get_activities" %}?limit=200')
-        .then(response => response.json())
+    fetch('{% url "frontend:get_activities" %}?limit=200', {
+        credentials: 'same-origin',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             const container = document.getElementById('logger-container');
+            if (!container) {
+                console.error('Logger container not found');
+                return;
+            }
+            
             const activities = data.activities || [];
             
             if (activities.length === 0) {
-                container.innerHTML = '<div class="text-gray-400">No activities yet...</div>';
+                container.innerHTML = '<div class="text-gray-400">No activities yet. Start clicking around the site to see activities logged here!</div>';
                 return;
             }
             
             container.innerHTML = activities.reverse().map(renderActivity).join('');
             
             // Update stats
-            document.getElementById('total-count').textContent = activities.length;
-            document.getElementById('clicks-count').textContent = 
-                activities.filter(a => a.type === 'click').length;
-            document.getElementById('views-count').textContent = 
-                activities.filter(a => a.type === 'pageview').length;
-            document.getElementById('htmx-count').textContent = 
-                activities.filter(a => a.type === 'htmx').length;
+            const totalEl = document.getElementById('total-count');
+            const clicksEl = document.getElementById('clicks-count');
+            const viewsEl = document.getElementById('views-count');
+            const htmxEl = document.getElementById('htmx-count');
+            
+            if (totalEl) totalEl.textContent = activities.length;
+            if (clicksEl) clicksEl.textContent = activities.filter(a => a.type === 'click').length;
+            if (viewsEl) viewsEl.textContent = activities.filter(a => a.type === 'pageview').length;
+            if (htmxEl) htmxEl.textContent = activities.filter(a => a.type === 'htmx').length;
             
             // Auto-scroll to bottom
             container.scrollTop = container.scrollHeight;
         })
         .catch(error => {
             console.error('Error loading activities:', error);
+            const container = document.getElementById('logger-container');
+            if (container) {
+                container.innerHTML = `<div class="text-red-400">Error loading activities: ${error.message}</div>`;
+            }
         });
 }
 
@@ -146,19 +167,22 @@ function toggleAutoRefresh() {
     }
 }
 
-// Log page view
-fetch('{% url "frontend:log_activity" %}', {
-    method: 'POST',
-    headers: {
-        'X-CSRFToken': '{{ csrf_token }}',
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-        type: 'pageview',
-        message: 'Logger viewer page opened',
-        details: { path: window.location.pathname }
-    })
-});
+// Log page view when logger page loads
+if (window.location.pathname.includes('/logger/')) {
+    fetch('{% url "frontend:log_activity" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+            type: 'pageview',
+            message: 'Logger viewer page opened',
+            details: { path: window.location.pathname }
+        })
+    }).catch(err => console.warn('Failed to log pageview:', err));
+}
 
 // Track clicks
 document.addEventListener('click', (e) => {
