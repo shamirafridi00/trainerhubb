@@ -17,6 +17,7 @@ urlpatterns = [
     path('api/', include('apps.packages.urls')),
     path('api/', include('apps.payments.urls')),
     path('api/', include('apps.notifications.urls')),
+    path('api/', include('apps.analytics.urls')),
 ]
 
 # Serve media files in development
