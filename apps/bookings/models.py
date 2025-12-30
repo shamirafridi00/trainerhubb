@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from apps.trainers.models import Trainer
 from apps.clients.models import Client
+from apps.packages.models import Service
 
 
 class Booking(models.Model):
@@ -19,6 +20,7 @@ class Booking(models.Model):
     
     trainer = models.ForeignKey(Trainer, on_delete=models.CASCADE, related_name='bookings')
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='bookings')
+    service = models.ForeignKey(Service, on_delete=models.SET_NULL, null=True, blank=True, related_name='bookings')
     start_time = models.DateTimeField(db_index=True)
     end_time = models.DateTimeField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', db_index=True)
@@ -31,8 +33,11 @@ class Booking(models.Model):
         ordering = ['-start_time']
         indexes = [
             models.Index(fields=['trainer', 'start_time']),
+            models.Index(fields=['trainer', 'status']),
+            models.Index(fields=['trainer', 'status', 'start_time']),
             models.Index(fields=['client', 'start_time']),
             models.Index(fields=['status', 'start_time']),
+            models.Index(fields=['service', 'start_time']),
         ]
     
     def clean(self):

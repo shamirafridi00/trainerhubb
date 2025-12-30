@@ -42,6 +42,9 @@ class Client(models.Model):
         unique_together = ['trainer', 'email']
         indexes = [
             models.Index(fields=['trainer', 'email']),
+            models.Index(fields=['trainer', 'is_active']),
+            models.Index(fields=['trainer', 'payment_status']),
+            models.Index(fields=['trainer', 'created_at']),
             models.Index(fields=['created_at']),
         ]
     

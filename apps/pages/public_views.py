@@ -12,8 +12,8 @@ from apps.trainers.models import Trainer, PaymentLinks
 from apps.trainers.serializers import TrainerSerializer, PaymentLinksSerializer
 from apps.pages.models import Page, PageSection
 from apps.pages.serializers import PageSerializer, PageSectionSerializer
-from apps.bookings.models import Availability
-from apps.bookings.serializers import AvailabilitySerializer
+from apps.availability.models import AvailabilitySlot
+from apps.availability.serializers import AvailabilitySlotSerializer
 
 
 class PublicPageViewSet(viewsets.ReadOnlyModelViewSet):
@@ -144,12 +144,12 @@ def get_trainer_availability(request, trainer_slug):
         )
     
     # Get availability for the trainer
-    availabilities = Availability.objects.filter(
+    availabilities = AvailabilitySlot.objects.filter(
         trainer=trainer,
         is_available=True
     ).order_by('day_of_week', 'start_time')
     
-    serializer = AvailabilitySerializer(availabilities, many=True)
+    serializer = AvailabilitySlotSerializer(availabilities, many=True)
     return Response(serializer.data)
 
 

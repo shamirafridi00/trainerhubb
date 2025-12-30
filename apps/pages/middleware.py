@@ -19,8 +19,8 @@ class SubdomainMiddleware(MiddlewareMixin):
         try:
             custom_domain = CustomDomain.objects.filter(
                 domain=host,
-                is_verified=True,
-                is_active=True
+                status='active',
+                dns_verified_at__isnull=False
             ).select_related('trainer').first()
             
             if custom_domain:

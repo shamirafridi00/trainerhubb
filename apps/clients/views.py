@@ -25,10 +25,15 @@ class ClientViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
     
     def get_queryset(self):
-        """Get only clients for current trainer."""
+        """Get only clients for current trainer with optimized queries."""
         try:
             trainer = self.request.user.trainer_profile
-            return Client.objects.filter(trainer=trainer)
+            return Client.objects.filter(trainer=trainer).select_related(
+                'trainer__user'
+            ).prefetch_related(
+                'client_notes',
+                'payments'
+            )
         except Trainer.DoesNotExist:
             return Client.objects.none()
     

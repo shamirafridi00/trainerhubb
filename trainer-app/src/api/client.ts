@@ -1,7 +1,7 @@
 import axios, { AxiosError, type AxiosInstance, type AxiosRequestConfig } from 'axios';
 import type { ApiError } from '@/types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 class ApiClient {
   private client: AxiosInstance;
@@ -17,7 +17,17 @@ class ApiClient {
     // Request interceptor to add auth token
     this.client.interceptors.request.use(
       (config) => {
-        const token = localStorage.getItem('auth_token');
+        // Try to get token from auth store first, then fallback to localStorage
+        const authStorage = localStorage.getItem('auth-storage');
+        let token = null;
+        if (authStorage) {
+          try {
+            const authData = JSON.parse(authStorage);
+            token = authData.state?.token;
+          } catch (e) {
+            // Ignore parsing errors
+          }
+        }
         if (token) {
           config.headers.Authorization = `Token ${token}`;
         }

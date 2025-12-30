@@ -99,6 +99,46 @@ class SMSTemplate(models.Model):
         return f"{self.trainer.business_name} - {self.name}"
 
 
+class WorkflowTemplate(models.Model):
+    """Pre-built workflow templates that can be cloned"""
+    CATEGORY_CHOICES = [
+        ('booking', 'Booking Management'),
+        ('payment', 'Payment & Billing'),
+        ('client', 'Client Communication'),
+        ('reminder', 'Reminders & Notifications'),
+        ('general', 'General'),
+    ]
+    
+    name = models.CharField(max_length=255)
+    description = models.TextField()
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='general')
+    icon = models.CharField(max_length=50, blank=True)  # Icon name for UI
+    
+    # Template configuration (to be cloned)
+    trigger_type = models.CharField(max_length=50)
+    trigger_delay_minutes = models.IntegerField(default=0)
+    trigger_conditions = models.JSONField(default=dict)
+    
+    # Actions configuration (list of actions to create)
+    actions_config = models.JSONField(default=list)  # List of action dicts
+    
+    # Usage tracking
+    times_used = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['category', 'name']
+        indexes = [
+            models.Index(fields=['category', 'is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} ({self.get_category_display()})"
+
+
 class WorkflowExecutionLog(models.Model):
     """Log of workflow executions"""
     STATUS_CHOICES = [

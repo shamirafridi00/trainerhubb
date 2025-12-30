@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Workflow, WorkflowTrigger, WorkflowAction, EmailTemplate, SMSTemplate, WorkflowExecutionLog
+from .models import Workflow, WorkflowTrigger, WorkflowAction, EmailTemplate, SMSTemplate, WorkflowExecutionLog, WorkflowTemplate
 
 
 class WorkflowTriggerSerializer(serializers.ModelSerializer):
@@ -87,4 +87,18 @@ class WorkflowExecutionLogSerializer(serializers.ModelSerializer):
             'status', 'error_message', 'executed_at'
         ]
         read_only_fields = ['id', 'executed_at']
+
+
+class WorkflowTemplateSerializer(serializers.ModelSerializer):
+    """Serializer for workflow templates"""
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    
+    class Meta:
+        model = WorkflowTemplate
+        fields = [
+            'id', 'name', 'description', 'category', 'category_display', 'icon',
+            'trigger_type', 'trigger_delay_minutes', 'trigger_conditions',
+            'actions_config', 'times_used', 'is_active', 'created_at'
+        ]
+        read_only_fields = ['id', 'times_used', 'created_at']
 

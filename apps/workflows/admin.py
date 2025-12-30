@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Workflow, WorkflowTrigger, WorkflowAction, EmailTemplate, SMSTemplate, WorkflowExecutionLog
+from .models import Workflow, WorkflowTrigger, WorkflowAction, EmailTemplate, SMSTemplate, WorkflowExecutionLog, WorkflowTemplate
 
 
 @admin.register(Workflow)
@@ -47,3 +47,11 @@ class WorkflowExecutionLogAdmin(admin.ModelAdmin):
     list_filter = ['status', 'trigger_type', 'executed_at']
     search_fields = ['workflow__name']
     readonly_fields = ['executed_at']
+
+
+@admin.register(WorkflowTemplate)
+class WorkflowTemplateAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name', 'category', 'times_used', 'is_active', 'created_at']
+    list_filter = ['category', 'is_active', 'created_at']
+    search_fields = ['name', 'description']
+    readonly_fields = ['times_used', 'created_at', 'updated_at']

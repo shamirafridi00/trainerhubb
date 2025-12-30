@@ -175,8 +175,10 @@ class ClientPayment(models.Model):
         ordering = ['-payment_date', '-created_at']
         indexes = [
             models.Index(fields=['client', 'payment_date']),
+            models.Index(fields=['client', 'recorded_by']),
             models.Index(fields=['payment_method']),
             models.Index(fields=['payment_date']),
+            models.Index(fields=['recorded_by', 'payment_date']),
         ]
     
     def __str__(self):

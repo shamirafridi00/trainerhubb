@@ -64,6 +64,10 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'apps.frontend.middleware.UserInteractionLoggerMiddleware',  # User interaction logging
+    'apps.core.middleware.RequestLoggingMiddleware',  # Request logging and monitoring
+    'apps.core.middleware.HealthCheckMiddleware',  # Health check enhancements
+    'apps.core.middleware.SecurityHeadersMiddleware',  # Security headers
+    'apps.core.middleware.PerformanceMonitoringMiddleware',  # Performance monitoring
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -86,28 +90,31 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-# Database - Supabase PostgreSQL
+# Database Configuration
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 DATABASES = {
     'default': {
         'ENGINE': config('DB_ENGINE', default='django.db.backends.postgresql'),
         'NAME': config('DB_NAME', default='postgres'),
-        'USER': config('DB_USER'),
-        'PASSWORD': config('DB_PASSWORD'),
-        'HOST': config('DB_HOST'),
+        'USER': config('DB_USER', default=''),
+        'PASSWORD': config('DB_PASSWORD', default=''),
+        'HOST': config('DB_HOST', default=''),
         'PORT': config('DB_PORT', default='5432'),
         'CONN_MAX_AGE': 600,
-        'OPTIONS': {
-            'sslmode': 'require',
-            'connect_timeout': 10,
-        }
     }
 }
 
+# Add PostgreSQL-specific options only when using PostgreSQL
+if DATABASES['default']['ENGINE'] == 'django.db.backends.postgresql':
+    DATABASES['default']['OPTIONS'] = {
+        'sslmode': 'require',
+        'connect_timeout': 10,
+    }
+
 # Supabase Configuration
-SUPABASE_URL = config('SUPABASE_URL')
-SUPABASE_ANON_KEY = config('SUPABASE_ANON_KEY')
-SUPABASE_PROJECT_ID = config('SUPABASE_PROJECT_ID')
+SUPABASE_URL = config('SUPABASE_URL', default='')
+SUPABASE_ANON_KEY = config('SUPABASE_ANON_KEY', default='')
+SUPABASE_PROJECT_ID = config('SUPABASE_PROJECT_ID', default='')
 
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
@@ -151,6 +158,49 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom user model
 AUTH_USER_MODEL = 'users.User'
 
+# Caching configuration - use Redis if available, otherwise fallback to locmem
+REDIS_URL = config('REDIS_URL', default='redis://127.0.0.1:6379/0')
+
+def get_cache_backend(redis_url, timeout=300, prefix='trainerhubb'):
+    """Get cache backend, falling back to locmem if Redis is unavailable."""
+    try:
+        # Test Redis connection
+        import redis
+        client = redis.from_url(redis_url)
+        client.ping()
+        return {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': redis_url,
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'CONNECTION_POOL_KWARGS': {
+                    'max_connections': 50,
+                    'retry_on_timeout': True,
+                },
+                'SOCKET_CONNECT_TIMEOUT': 5,
+                'SOCKET_TIMEOUT': 5,
+            },
+            'KEY_PREFIX': prefix,
+            'TIMEOUT': timeout,
+        }
+    except (ImportError, redis.ConnectionError):
+        # Fallback to local memory cache
+        return {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': f'{prefix}_cache',
+            'TIMEOUT': timeout,
+        }
+
+CACHES = {
+    'default': get_cache_backend(REDIS_URL, timeout=300, prefix='trainerhubb'),
+    'templates': get_cache_backend(f'{REDIS_URL.rsplit("/", 1)[0]}/1', timeout=3600, prefix='trainerhubb_templates'),
+    'sessions': get_cache_backend(f'{REDIS_URL.rsplit("/", 1)[0]}/2', timeout=86400, prefix='trainerhubb_sessions'),
+}
+
+# Session configuration
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'sessions'
+
 # REST Framework Configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -179,9 +229,25 @@ REST_FRAMEWORK = {
 # CORS Configuration
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3002',
+    'http://localhost:3003',
+    'http://localhost:3004',
+    'http://localhost:3005',
     'http://localhost:8000',
     'http://127.0.0.1:3000',
+    'http://127.0.0.1:3001',
+    'http://127.0.0.1:3002',
+    'http://127.0.0.1:3003',
+    'http://127.0.0.1:3004',
+    'http://127.0.0.1:3005',
     'http://127.0.0.1:8000',
+    'http://192.168.100.182:3000',
+    'http://192.168.100.182:3001',
+    'http://192.168.100.182:3002',
+    'http://192.168.100.182:3003',
+    'http://192.168.100.182:3004',
+    'http://192.168.100.182:3005',
 ]
 
 # Security settings for production

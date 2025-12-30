@@ -47,9 +47,14 @@ class PageViewSet(viewsets.ModelViewSet):
     serializer_class = PageSerializer
     
     def get_queryset(self):
-        """Filter to current trainer's pages"""
+        """Filter to current trainer's pages with optimized queries"""
         if hasattr(self.request.user, 'trainer_profile'):
-            return Page.objects.filter(trainer=self.request.user.trainer_profile)
+            return Page.objects.filter(trainer=self.request.user.trainer_profile).select_related(
+                'trainer__user',
+                'template'
+            ).prefetch_related(
+                'sections'
+            )
         return Page.objects.none()
     
     def get_serializer_class(self):

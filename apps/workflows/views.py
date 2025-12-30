@@ -3,11 +3,11 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
-from .models import Workflow, WorkflowTrigger, WorkflowAction, EmailTemplate, SMSTemplate, WorkflowExecutionLog
+from .models import Workflow, WorkflowTrigger, WorkflowAction, EmailTemplate, SMSTemplate, WorkflowExecutionLog, WorkflowTemplate
 from .serializers import (
     WorkflowSerializer, WorkflowCreateSerializer,
     EmailTemplateSerializer, SMSTemplateSerializer,
-    WorkflowExecutionLogSerializer
+    WorkflowExecutionLogSerializer, WorkflowTemplateSerializer
 )
 from apps.payments.permissions import check_usage_limit
 
@@ -126,3 +126,67 @@ class WorkflowExecutionLogViewSet(viewsets.ReadOnlyModelViewSet):
                 workflow_id__in=workflow_ids
             ).select_related('workflow').order_by('-executed_at')
         return WorkflowExecutionLog.objects.none()
+
+
+class WorkflowTemplateViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for viewing and using workflow templates"""
+    permission_classes = [IsAuthenticated]
+    serializer_class = WorkflowTemplateSerializer
+    queryset = WorkflowTemplate.objects.filter(is_active=True)
+    
+    @action(detail=True, methods=['post'])
+    def use_template(self, request, pk=None):
+        """
+        Clone a template into a new workflow for the current trainer.
+        POST /api/workflows/templates/{id}/use_template/
+        """
+        if not hasattr(request.user, 'trainer_profile'):
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'error': 'User is not a trainer'})
+        
+        trainer = request.user.trainer_profile
+        template = self.get_object()
+        
+        # Check usage limits
+        can_create, current_count, limit = check_usage_limit(trainer, 'workflows')
+        if not can_create:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({
+                'error': 'Usage limit reached',
+                'detail': f'You have reached your limit of {limit} workflows. Upgrade your plan to add more.',
+                'current_count': current_count,
+                'limit': limit
+            })
+        
+        # Create workflow from template
+        workflow = Workflow.objects.create(
+            trainer=trainer,
+            name=template.name,
+            description=template.description,
+            is_active=False  # Start inactive so trainer can customize
+        )
+        
+        # Create trigger
+        WorkflowTrigger.objects.create(
+            workflow=workflow,
+            trigger_type=template.trigger_type,
+            conditions=template.trigger_conditions,
+            delay_minutes=template.trigger_delay_minutes
+        )
+        
+        # Create actions
+        for action_config in template.actions_config:
+            WorkflowAction.objects.create(
+                workflow=workflow,
+                action_type=action_config['action_type'],
+                action_data=action_config['action_data'],
+                order=action_config['order']
+            )
+        
+        # Increment usage counter
+        template.times_used += 1
+        template.save(update_fields=['times_used'])
+        
+        # Return the created workflow
+        serializer = WorkflowSerializer(workflow)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)

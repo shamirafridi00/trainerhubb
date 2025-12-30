@@ -9,6 +9,7 @@ from django.utils import timezone
 from .models import Booking
 from .serializers import BookingSerializer, BookingCreateSerializer, BookingDetailSerializer
 from apps.trainers.models import Trainer
+from apps.packages.models import Service
 
 
 class BookingViewSet(viewsets.ModelViewSet):
@@ -24,10 +25,16 @@ class BookingViewSet(viewsets.ModelViewSet):
     ordering = ['-start_time']
     
     def get_queryset(self):
-        """Get only bookings for current trainer."""
+        """Get only bookings for current trainer with optimized queries."""
         try:
             trainer = self.request.user.trainer_profile
-            return Booking.objects.filter(trainer=trainer).select_related('client', 'trainer')
+            return Booking.objects.filter(trainer=trainer).select_related(
+                'client',
+                'trainer',
+                'service'
+            ).prefetch_related(
+                'payments'
+            )
         except Trainer.DoesNotExist:
             return Booking.objects.none()
     
