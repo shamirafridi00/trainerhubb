@@ -17,34 +17,30 @@ class BookingSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'trainer', 'trainer_name', 'client', 'client_name',
             'start_time', 'end_time', 'status', 'notes', 'duration_minutes',
-            'is_upcoming', 'is_past', 'created_at', 'updated_at'
+            'is_upcoming', 'is_past', 'created_at'
         ]
-        read_only_fields = ['id', 'trainer', 'created_at', 'updated_at', 'duration_minutes', 'is_upcoming', 'is_past']
+        read_only_fields = ['id', 'created_at', 'duration_minutes', 'is_upcoming', 'is_past']
     
     def validate_start_time(self, value):
-        """Validate start time is in the future for new bookings."""
-        # Only validate for new bookings (not updates)
-        if not self.instance and value < timezone.now():
+        """Validate start time is in the future."""
+        if value < timezone.now():
             raise serializers.ValidationError("Cannot book in the past.")
         return value
     
     def validate(self, data):
         """Validate booking times and availability."""
-        start = data.get('start_time', self.instance.start_time if self.instance else None)
-        end = data.get('end_time', self.instance.end_time if self.instance else None)
+        start = data.get('start_time')
+        end = data.get('end_time')
         
-        if start and end and start >= end:
+        if start >= end:
             raise serializers.ValidationError("End time must be after start time.")
         
-        # Check for conflicts only for pending/confirmed bookings
-        status = data.get('status', self.instance.status if self.instance else 'pending')
-        if status in ['pending', 'confirmed']:
-            from apps.availability.utils import has_conflict
-            trainer = data.get('trainer', self.instance.trainer if self.instance else None)
-            
-            if trainer and start and end:
-                if has_conflict(trainer.id, start, end):
-                    raise serializers.ValidationError("Trainer is not available at this time.")
+        # Check for conflicts
+        from apps.availability.utils import has_conflict
+        trainer = data.get('trainer')
+        
+        if has_conflict(trainer.id, start, end):
+            raise serializers.ValidationError("Trainer is not available at this time.")
         
         return data
 
@@ -54,23 +50,12 @@ class BookingCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Booking
-        fields = ['id', 'client', 'start_time', 'end_time', 'notes', 'status', 'created_at']
-        read_only_fields = ['id', 'status', 'created_at']
-    
-    def validate_start_time(self, value):
-        """Validate start time is in the future."""
-        if value < timezone.now():
-            raise serializers.ValidationError("Cannot book in the past.")
-        return value
-    
-    def validate(self, data):
-        """Validate booking times."""
-        if data['start_time'] >= data['end_time']:
-            raise serializers.ValidationError("End time must be after start time.")
-        return data
+        fields = ['client', 'start_time', 'end_time', 'notes']
     
     def create(self, validated_data):
-        """Create booking - trainer is set by view's perform_create."""
+        """Create booking with current trainer."""
+        trainer = self.context['request'].user.trainer_profile
+        validated_data['trainer'] = trainer
         return super().create(validated_data)
 
 

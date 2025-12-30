@@ -12,11 +12,14 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     Creates user in both Django and optionally syncs with Supabase.
     """
     password = serializers.CharField(write_only=True, min_length=8)
-    password_confirm = serializers.CharField(write_only=True, min_length=8)
+    password_confirm = serializers.CharField(write_only=True, min_length=8, required=False)
+    username = serializers.CharField(required=False, allow_blank=True)
+    business_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    phone_number = serializers.CharField(write_only=True, required=False, allow_blank=True)
     
     class Meta:
         model = User
-        fields = ['email', 'username', 'first_name', 'last_name', 'password', 'password_confirm']
+        fields = ['email', 'username', 'first_name', 'last_name', 'password', 'password_confirm', 'business_name', 'phone_number']
     
     def validate_email(self, value):
         """Validate email is unique and valid format."""
@@ -25,26 +28,64 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return value.lower()
     
     def validate_username(self, value):
-        """Validate username is unique."""
-        if User.objects.filter(username=value.lower()).exists():
-            raise serializers.ValidationError("Username already taken.")
-        return value.lower()
+        """Validate username is unique or generate from email."""
+        if value:
+            if User.objects.filter(username=value.lower()).exists():
+                raise serializers.ValidationError("Username already taken.")
+            return value.lower()
+        return value
     
     def validate(self, data):
-        """Validate passwords match."""
-        if data['password'] != data['password_confirm']:
-            raise serializers.ValidationError("Passwords do not match.")
+        """Validate passwords match and generate username if not provided."""
+        # Generate username from email if not provided
+        if not data.get('username'):
+            email_local = data['email'].split('@')[0]
+            base_username = email_local.lower().replace('.', '_').replace('-', '_')
+            username = base_username
+            counter = 1
+            while User.objects.filter(username=username).exists():
+                username = f"{base_username}{counter}"
+                counter += 1
+            data['username'] = username
+        
+        # Validate password confirmation
+        password_confirm = data.get('password_confirm') or data.get('password')
+        if data['password'] != password_confirm:
+            raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
+        
         return data
     
     def create(self, validated_data):
         """Create user with hashed password."""
-        validated_data.pop('password_confirm')
+        validated_data.pop('password_confirm', None)
+        business_name = validated_data.pop('business_name', None)
+        phone_number = validated_data.pop('phone_number', None)
         password = validated_data.pop('password')
         
         user = User.objects.create_user(
             **validated_data,
-            password=password
+            password=password,
+            is_trainer=True  # All registrations are trainers
         )
+        
+        # Set phone number if provided
+        if phone_number:
+            user.phone_number = phone_number
+            user.save()
+        
+        # Create trainer profile automatically
+        from apps.trainers.models import Trainer
+        trainer_business_name = business_name or user.get_full_name() or f"{user.email}'s Fitness Business"
+        
+        Trainer.objects.create(
+            user=user,
+            business_name=trainer_business_name,
+            bio='',
+            location='',
+            timezone='UTC',
+            is_verified=False
+        )
+        
         return user
 
 

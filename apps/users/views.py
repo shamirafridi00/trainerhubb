@@ -34,27 +34,38 @@ class UserViewSet(viewsets.ModelViewSet):
     def register(self, request):
         """
         User registration endpoint.
+        Automatically creates a trainer profile for new users.
         
         POST /api/users/register/
         {
             "email": "trainer@example.com",
-            "username": "trainer123",
             "first_name": "John",
             "last_name": "Doe",
             "password": "securepassword123",
-            "password_confirm": "securepassword123"
+            "password_confirm": "securepassword123",
+            "business_name": "John's Fitness Studio",
+            "phone_number": "+1234567890"
         }
         """
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
+            
             token, created = Token.objects.get_or_create(user=user)
+            
+            # Get trainer profile (created automatically in serializer)
+            trainer = user.trainer_profile
+            
+            # Serialize user and trainer for response
+            from apps.trainers.serializers import TrainerSerializer
+            from .serializers import UserSerializer
+            
+            user_serializer = UserSerializer(user)
+            trainer_serializer = TrainerSerializer(trainer)
+            
             return Response({
-                'id': user.id,
-                'email': user.email,
-                'username': user.username,
-                'first_name': user.first_name,
-                'last_name': user.last_name,
+                'user': user_serializer.data,
+                'trainer': trainer_serializer.data,
                 'token': token.key
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -74,15 +85,24 @@ class UserViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             user = serializer.validated_data['user']
             token, created = Token.objects.get_or_create(user=user)
+            
+            # Get trainer profile if exists
+            trainer_data = None
+            try:
+                trainer = user.trainer_profile
+                from apps.trainers.serializers import TrainerSerializer
+                trainer_serializer = TrainerSerializer(trainer)
+                trainer_data = trainer_serializer.data
+            except:
+                pass
+            
+            from .serializers import UserSerializer
+            user_serializer = UserSerializer(user)
+            
             return Response({
-                'id': user.id,
-                'email': user.email,
-                'username': user.username,
-                'first_name': user.first_name,
-                'last_name': user.last_name,
-                'token': token.key,
-                'is_trainer': user.is_trainer,
-                'is_client': user.is_client
+                'user': user_serializer.data,
+                'trainer': trainer_data,
+                'token': token.key
             }, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
@@ -117,11 +137,40 @@ class UserViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(user, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
-                return Response(serializer.data)
+                user_serializer = self.get_serializer(user)
+                
+                # Include trainer profile if exists
+                trainer_data = None
+                try:
+                    trainer = user.trainer_profile
+                    from apps.trainers.serializers import TrainerSerializer
+                    trainer_serializer = TrainerSerializer(trainer)
+                    trainer_data = trainer_serializer.data
+                except:
+                    pass
+                
+                return Response({
+                    'user': user_serializer.data,
+                    'trainer': trainer_data
+                })
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         else:
-            serializer = self.get_serializer(request.user)
-            return Response(serializer.data)
+            user_serializer = self.get_serializer(request.user)
+            
+            # Include trainer profile if exists
+            trainer_data = None
+            try:
+                trainer = request.user.trainer_profile
+                from apps.trainers.serializers import TrainerSerializer
+                trainer_serializer = TrainerSerializer(trainer)
+                trainer_data = trainer_serializer.data
+            except:
+                pass
+            
+            return Response({
+                'user': user_serializer.data,
+                'trainer': trainer_data
+            })
     
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def change_password(self, request):

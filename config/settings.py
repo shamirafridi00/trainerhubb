@@ -20,6 +20,8 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost', cast=Csv())
 
 # Application definition
 INSTALLED_APPS = [
+    'admin_interface',  # Must be before django.contrib.admin
+    'colorfield',  # Required by admin_interface
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -44,6 +46,9 @@ INSTALLED_APPS = [
     'apps.notifications',
     'apps.analytics',
     'apps.frontend',
+    'apps.admin_panel',
+    'apps.pages',
+    'apps.workflows',
 ]
 
 MIDDLEWARE = [
@@ -52,8 +57,10 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'apps.pages.middleware.SubdomainMiddleware',  # Subdomain/custom domain detection
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'apps.payments.middleware.SubscriptionMiddleware',  # Subscription status checking
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'apps.frontend.middleware.UserInteractionLoggerMiddleware',  # User interaction logging
@@ -193,6 +200,17 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
+
+# Fail fast if Redis is unavailable (prevent slow retries)
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = False
+CELERY_BROKER_CONNECTION_RETRY = False
+CELERY_BROKER_CONNECTION_MAX_RETRIES = 1
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'max_connections': 10,
+    'socket_connect_timeout': 2,  # 2 second timeout
+    'socket_timeout': 2,
+    'retry_on_timeout': False,
+}
 
 # Email Configuration (SendGrid)
 SENDGRID_API_KEY = config('SENDGRID_API_KEY', default='')

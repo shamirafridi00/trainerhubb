@@ -1,0 +1,15 @@
+# Additional requirements for domain management
+
+# DNS verification
+dnspython==2.6.1
+
+# Date parsing for SSL expiry
+python-dateutil==2.8.2
+
+# HTTP requests for domain testing
+requests==2.31.0
+
+# SSL certificate management (for production)
+# certbot==2.10.0
+# certbot-dns-cloudflare==2.10.0  # If using Cloudflare DNS
+

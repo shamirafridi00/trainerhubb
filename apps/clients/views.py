@@ -8,6 +8,8 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from .models import Client, ClientNote
 from .serializers import ClientSerializer, ClientDetailSerializer, ClientNoteSerializer
 from apps.trainers.models import Trainer
+from apps.payments.models import ClientPayment
+from apps.payments.serializers import ClientPaymentSerializer
 
 
 class ClientViewSet(viewsets.ModelViewSet):
@@ -96,3 +98,38 @@ class ClientViewSet(viewsets.ModelViewSet):
             'bookings': [],
             'message': 'Bookings will be available in Epic 4'
         })
+    
+    @action(detail=True, methods=['get', 'post'], url_path='payments')
+    def payments(self, request, pk=None):
+        """
+        Get or create payments for a client.
+        
+        GET /api/clients/{id}/payments/ - Get payment history
+        POST /api/clients/{id}/payments/ - Record new payment
+        """
+        client = self.get_object()
+        
+        if request.method == 'GET':
+            payments = ClientPayment.objects.filter(client=client).select_related(
+                'recorded_by', 'package', 'booking'
+            ).order_by('-payment_date', '-created_at')
+            serializer = ClientPaymentSerializer(payments, many=True)
+            return Response(serializer.data)
+        
+        elif request.method == 'POST':
+            serializer = ClientPaymentSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save(client=client, recorded_by=request.user)
+                
+                # Update client payment status
+                from django.db.models import Sum
+                total_paid = ClientPayment.objects.filter(client=client).aggregate(Sum('amount'))['amount__sum'] or 0
+                latest_payment = ClientPayment.objects.filter(client=client).order_by('-payment_date').first()
+                
+                client.total_paid = total_paid
+                client.last_payment_date = latest_payment.payment_date if latest_payment else None
+                client.payment_status = 'paid' if total_paid > 0 else 'unpaid'
+                client.save()
+                
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

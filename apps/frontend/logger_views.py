@@ -37,8 +37,9 @@ class ActivityLogger:
         if len(cls._activities) > cls._max_activities:
             cls._activities = cls._activities[-cls._max_activities:]
         
-        # Also log to Django logger
-        logger.info(f"{activity_type}: {message}", extra=activity)
+        # Also log to Django logger (use a copy without 'message' key to avoid overwriting LogRecord field)
+        log_extra = {k: v for k, v in activity.items() if k != 'message'}
+        logger.info(f"{activity_type}: {message}", extra=log_extra)
         
         return activity
     

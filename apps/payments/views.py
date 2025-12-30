@@ -1,485 +1,443 @@
+"""
+Payment Views
+Handles Paddle webhooks and subscription management endpoints.
+"""
+import json
+import logging
+from django.http import JsonResponse, HttpResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse
-from django.conf import settings
-from django.utils import timezone
-import json
-import hmac
-import hashlib
-from datetime import datetime
+from django.http import HttpResponse
+import csv
+from io import StringIO
 
-from .models import Subscription, Payment
-from .serializers import SubscriptionSerializer, PaymentSerializer, CreateSubscriptionSerializer
-from .paddle_service import paddle_service
-from apps.trainers.models import Trainer
+from .models import Subscription, Payment, WebhookEvent, ClientPayment
+from .serializers import SubscriptionSerializer, PaymentSerializer, ClientPaymentSerializer
+from .utils import get_revenue_summary, get_recent_payments
+from .paddle_webhooks import PaddleWebhookHandler
+
+logger = logging.getLogger(__name__)
 
 
-class SubscriptionViewSet(viewsets.ModelViewSet):
-    """ViewSet for managing subscriptions."""
-    serializer_class = SubscriptionSerializer
+@csrf_exempt
+@require_http_methods(["POST"])
+def paddle_webhook(request):
+    """
+    Paddle webhook endpoint.
+    Receives and processes Paddle webhook events.
+    
+    POST /api/payments/paddle-webhook/
+    """
+    try:
+        # Parse JSON payload
+        payload = json.loads(request.body)
+        
+        # Get signature from headers
+        signature = request.headers.get('Paddle-Signature')
+        
+        # Process webhook
+        handler = PaddleWebhookHandler(payload, signature)
+        success, message = handler.process()
+        
+        if success:
+            logger.info(f"Webhook processed successfully: {message}")
+            return JsonResponse({'status': 'success', 'message': message})
+        else:
+            logger.error(f"Webhook processing failed: {message}")
+            return JsonResponse(
+                {'status': 'error', 'message': message},
+                status=400
+            )
+            
+    except json.JSONDecodeError:
+        logger.error("Invalid JSON in webhook payload")
+        return JsonResponse(
+            {'status': 'error', 'message': 'Invalid JSON'},
+            status=400
+        )
+    except Exception as e:
+        logger.error(f"Webhook error: {str(e)}", exc_info=True)
+        return JsonResponse(
+            {'status': 'error', 'message': str(e)},
+            status=500
+        )
+
+
+class SubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Subscription management endpoints.
+    Trainers can view their subscription details.
+    """
     permission_classes = [IsAuthenticated]
+    serializer_class = SubscriptionSerializer
     
     def get_queryset(self):
-        """Get subscription for current trainer."""
-        try:
-            trainer = self.request.user.trainer_profile
-            return Subscription.objects.filter(trainer=trainer).select_related('trainer')
-        except Trainer.DoesNotExist:
-            return Subscription.objects.none()
-    
-    def get_serializer_class(self):
-        """Use different serializer for create action."""
-        if self.action == 'create':
-            return CreateSubscriptionSerializer
-        return SubscriptionSerializer
-    
-    def perform_create(self, serializer):
-        """Create subscription for current trainer."""
-        trainer = self.request.user.trainer_profile
-        serializer.save(trainer=trainer)
-    
-    @action(detail=False, methods=['post'], url_path='create-checkout')
-    def create_checkout(self, request):
-        """
-        Create Paddle checkout link.
-        
-        POST /api/subscriptions/create-checkout/
-        {
-            "product_id": "pro_123",  // optional, uses default from settings
-            "return_url": "https://example.com/success"
-        }
-        """
-        product_id = request.data.get('product_id')
-        return_url = request.data.get('return_url', 'https://yourdomain.com/subscription/success')
-        
-        try:
-            trainer = request.user.trainer_profile
-            checkout = paddle_service.create_checkout(
-                trainer.id, product_id, return_url
+        """Filter to current user's subscription."""
+        if hasattr(self.request.user, 'trainer_profile'):
+            return Subscription.objects.filter(
+                trainer=self.request.user.trainer_profile
             )
-            
-            if 'error' in checkout:
-                return Response(
-                    {'error': checkout['error']},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            return Response(checkout)
-        except Exception as e:
+        return Subscription.objects.none()
+    
+    @action(detail=False, methods=['get'])
+    def current(self, request):
+        """
+        Get current user's subscription.
+        
+        GET /api/payments/subscriptions/current/
+        """
+        if not hasattr(request.user, 'trainer_profile'):
             return Response(
-                {'error': str(e)},
+                {'error': 'User is not a trainer'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        
+        try:
+            subscription = Subscription.objects.get(
+                trainer=request.user.trainer_profile
+            )
+            serializer = self.get_serializer(subscription)
+            return Response(serializer.data)
+        except Subscription.DoesNotExist:
+            # Create free tier subscription if doesn't exist
+            subscription = Subscription.objects.create(
+                trainer=request.user.trainer_profile,
+                plan='free',
+                status='active'
+            )
+            serializer = self.get_serializer(subscription)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    @action(detail=False, methods=['get'])
+    def features(self, request):
+        """
+        Get feature limits for current subscription.
+        
+        GET /api/payments/subscriptions/features/
+        """
+        if not hasattr(request.user, 'trainer_profile'):
+            return Response(
+                {'error': 'User is not a trainer'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            subscription = Subscription.objects.get(
+                trainer=request.user.trainer_profile
+            )
+        except Subscription.DoesNotExist:
+            # Default to free tier
+            subscription = Subscription(plan='free')
+        
+        features = {
+            'plan': subscription.plan,
+            'status': subscription.status,
+            'is_active': subscription.is_active(),
+            'limits': {
+                'max_clients': subscription.can_access_feature('max_clients'),
+                'max_pages': subscription.can_access_feature('max_pages'),
+                'custom_domain': subscription.can_access_feature('custom_domain'),
+                'white_label': subscription.can_access_feature('white_label'),
+                'workflows': subscription.can_access_feature('workflows'),
+            }
+        }
+        
+        return Response(features)
     
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
         """
-        Cancel subscription.
+        Cancel subscription at period end.
         
-        POST /api/subscriptions/{id}/cancel/
+        POST /api/payments/subscriptions/{id}/cancel/
         """
         subscription = self.get_object()
         
-        try:
-            result = paddle_service.cancel_subscription(subscription.paddle_subscription_id)
-            
-            if 'error' in result:
-                return Response(
-                    {'error': result['error']},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            subscription.status = 'cancelled'
-            subscription.save()
-            serializer = self.get_serializer(subscription)
-            return Response(serializer.data)
-        except Exception as e:
+        # Check ownership
+        if subscription.trainer != request.user.trainer_profile:
             return Response(
-                {'error': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
+                {'error': 'Not authorized'},
+                status=status.HTTP_403_FORBIDDEN
             )
+        
+        # TODO: Call Paddle API to cancel subscription
+        # For now, just mark it locally
+        subscription.cancel_at_period_end = True
+        subscription.save()
+        
+        logger.info(f"Subscription {subscription.id} cancelled by user {request.user.id}")
+        
+        return Response({
+            'message': 'Subscription will cancel at period end',
+            'cancel_at': subscription.current_period_end
+        })
     
     @action(detail=True, methods=['post'])
     def pause(self, request, pk=None):
         """
         Pause subscription.
         
-        POST /api/subscriptions/{id}/pause/
+        POST /api/payments/subscriptions/{id}/pause/
         """
         subscription = self.get_object()
         
-        try:
-            result = paddle_service.pause_subscription(subscription.paddle_subscription_id)
-            
-            if 'error' in result:
-                return Response(
-                    {'error': result['error']},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            subscription.status = 'paused'
-            subscription.save()
-            serializer = self.get_serializer(subscription)
-            return Response(serializer.data)
-        except Exception as e:
+        # Check ownership
+        if subscription.trainer != request.user.trainer_profile:
             return Response(
-                {'error': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
+                {'error': 'Not authorized'},
+                status=status.HTTP_403_FORBIDDEN
             )
+        
+        # TODO: Call Paddle API to pause subscription
+        subscription.status = 'paused'
+        subscription.save()
+        
+        logger.info(f"Subscription {subscription.id} paused by user {request.user.id}")
+        
+        return Response({'message': 'Subscription paused'})
     
     @action(detail=True, methods=['post'])
     def resume(self, request, pk=None):
         """
         Resume paused subscription.
         
-        POST /api/subscriptions/{id}/resume/
+        POST /api/payments/subscriptions/{id}/resume/
         """
         subscription = self.get_object()
         
-        try:
-            result = paddle_service.resume_subscription(subscription.paddle_subscription_id)
-            
-            if 'error' in result:
-                return Response(
-                    {'error': result['error']},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            subscription.status = 'active'
-            subscription.save()
-            serializer = self.get_serializer(subscription)
-            return Response(serializer.data)
-        except Exception as e:
+        # Check ownership
+        if subscription.trainer != request.user.trainer_profile:
             return Response(
-                {'error': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
+                {'error': 'Not authorized'},
+                status=status.HTTP_403_FORBIDDEN
             )
-    
-    @action(detail=True, methods=['post'], url_path='sync-from-paddle')
-    def sync_from_paddle(self, request, pk=None):
-        """
-        Sync subscription data from Paddle.
         
-        POST /api/subscriptions/{id}/sync-from-paddle/
-        """
-        subscription = self.get_object()
+        # TODO: Call Paddle API to resume subscription
+        subscription.status = 'active'
+        subscription.cancel_at_period_end = False
+        subscription.save()
         
-        try:
-            updated_subscription = paddle_service.sync_subscription_from_paddle(
-                subscription.paddle_subscription_id,
-                subscription.trainer
-            )
-            serializer = self.get_serializer(updated_subscription)
-            return Response(serializer.data)
-        except Exception as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        logger.info(f"Subscription {subscription.id} resumed by user {request.user.id}")
+        
+        return Response({'message': 'Subscription resumed'})
 
 
 class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
-    """ViewSet for viewing payments."""
-    serializer_class = PaymentSerializer
+    """
+    Payment history endpoints.
+    Trainers can view their payment history.
+    """
     permission_classes = [IsAuthenticated]
+    serializer_class = PaymentSerializer
     
     def get_queryset(self):
-        """Get payments for current trainer."""
-        try:
-            trainer = self.request.user.trainer_profile
+        """Filter to current user's payments."""
+        if hasattr(self.request.user, 'trainer_profile'):
             return Payment.objects.filter(
-                subscription__trainer=trainer
-            ).select_related('subscription', 'subscription__trainer').order_by('-created_at')
-        except Trainer.DoesNotExist:
-            return Payment.objects.none()
+                trainer=self.request.user.trainer_profile
+            ).order_by('-created_at')
+        return Payment.objects.none()
 
 
-def verify_paddle_signature(payload, signature):
+class ClientPaymentViewSet(viewsets.ModelViewSet):
     """
-    Verify Paddle webhook signature.
-    
-    Args:
-        payload: Raw request body (bytes)
-        signature: Signature from Paddle-Signature header
-    
-    Returns:
-        bool: True if signature is valid
+    Client payment tracking endpoints.
+    Trainers can record and manage client payments manually.
     """
-    if not settings.PADDLE_WEBHOOK_SECRET:
-        # If no secret configured, skip verification (development only)
-        return True
+    permission_classes = [IsAuthenticated]
+    serializer_class = ClientPaymentSerializer
     
-    try:
-        # Paddle uses HMAC SHA256
-        expected_signature = hmac.new(
-            settings.PADDLE_WEBHOOK_SECRET.encode('utf-8'),
-            payload,
-            hashlib.sha256
-        ).hexdigest()
-        
-        return hmac.compare_digest(expected_signature, signature)
-    except Exception:
-        return False
-
-
-@csrf_exempt
-def paddle_webhook(request):
-    """
-    Handle Paddle webhooks.
+    def get_queryset(self):
+        """Filter to current trainer's client payments."""
+        if hasattr(self.request.user, 'trainer_profile'):
+            trainer = self.request.user.trainer_profile
+            # Get payments for all trainer's clients
+            from apps.clients.models import Client
+            client_ids = Client.objects.filter(trainer=trainer).values_list('id', flat=True)
+            return ClientPayment.objects.filter(client_id__in=client_ids).select_related(
+                'client', 'recorded_by', 'package', 'booking'
+            ).order_by('-payment_date', '-created_at')
+        return ClientPayment.objects.none()
     
-    POST /api/payments/webhooks/paddle/
-    """
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    def perform_create(self, serializer):
+        """Set recorded_by to current user."""
+        serializer.save(recorded_by=self.request.user)
+        
+        # Update client payment status
+        client = serializer.instance.client
+        self._update_client_payment_status(client)
     
-    try:
-        # Get signature from header
-        signature = request.headers.get('Paddle-Signature', '')
+    def perform_update(self, serializer):
+        """Update client payment status after payment update."""
+        old_payment = self.get_object()
+        serializer.save()
         
-        # Get raw body for signature verification
-        raw_body = request.body
+        # Recalculate client payment status
+        client = serializer.instance.client
+        self._update_client_payment_status(client)
+    
+    def perform_destroy(self, instance):
+        """Update client payment status after payment deletion."""
+        client = instance.client
+        super().perform_destroy(instance)
+        self._update_client_payment_status(client)
+    
+    def _update_client_payment_status(self, client):
+        """Update client's total_paid and payment_status."""
+        from django.db.models import Sum
+        from django.utils import timezone
         
-        # Verify signature if webhook secret is configured
-        if settings.PADDLE_WEBHOOK_SECRET:
-            if not verify_paddle_signature(raw_body, signature):
-                return JsonResponse({'error': 'Invalid signature'}, status=401)
+        payments = ClientPayment.objects.filter(client=client)
+        total_paid = payments.aggregate(Sum('amount'))['amount__sum'] or 0
         
-        # Parse JSON payload
-        data = json.loads(raw_body.decode('utf-8'))
-        event_type = data.get('event_type') or data.get('type')
+        # Get latest payment date
+        latest_payment = payments.order_by('-payment_date').first()
+        last_payment_date = latest_payment.payment_date if latest_payment else None
         
-        # Handle different event types
-        if event_type in ['subscription.created', 'subscription_created']:
-            _handle_subscription_created(data)
-        elif event_type in ['subscription.updated', 'subscription_updated']:
-            _handle_subscription_updated(data)
-        elif event_type in ['subscription.canceled', 'subscription.cancelled', 'subscription_canceled']:
-            _handle_subscription_cancelled(data)
-        elif event_type in ['transaction.completed', 'transaction_completed', 'transaction.paid']:
-            _handle_transaction_completed(data)
-        elif event_type in ['transaction.payment_failed', 'transaction_payment_failed']:
-            _handle_transaction_failed(data)
-        else:
-            # Log unhandled event types
-            print(f"Unhandled webhook event: {event_type}")
+        # Determine payment status (simplified - can be enhanced)
+        # This is a placeholder - actual logic would compare against expected payments
+        payment_status = 'paid' if total_paid > 0 else 'unpaid'
         
-        return JsonResponse({'status': 'processed'})
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=400)
-
-
-def _handle_subscription_created(data):
-    """Handle subscription.created webhook."""
-    try:
-        subscription_data = data.get('data', {})
-        paddle_subscription_id = subscription_data.get('id')
+        client.total_paid = total_paid
+        client.last_payment_date = last_payment_date
+        client.payment_status = payment_status
+        client.save()
+    
+    @action(detail=False, methods=['get'])
+    def revenue_summary(self, request):
+        """
+        Get revenue summary for current trainer.
         
-        # Try to get trainer from custom_data or customer_id
-        custom_data = subscription_data.get('custom_data', {})
-        trainer_id = custom_data.get('trainer_id')
-        
-        if not trainer_id:
-            # Try to extract from customer_id if it's in format trainer_123
-            customer_id = subscription_data.get('customer_id', '')
-            if customer_id.startswith('trainer_'):
-                trainer_id = customer_id.replace('trainer_', '')
-        
-        if trainer_id:
-            try:
-                trainer = Trainer.objects.get(id=trainer_id)
-                
-                # Get status and next billing date
-                status_map = {
-                    'active': 'active',
-                    'paused': 'paused',
-                    'canceled': 'cancelled',
-                    'cancelled': 'cancelled',
-                    'expired': 'expired',
-                }
-                paddle_status = subscription_data.get('status', 'active')
-                local_status = status_map.get(paddle_status.lower(), 'active')
-                
-                next_billing_date = None
-                if subscription_data.get('next_billed_at'):
-                    try:
-                        next_billing_date = datetime.fromisoformat(
-                            subscription_data['next_billed_at'].replace('Z', '+00:00')
-                        ).date()
-                    except (ValueError, AttributeError):
-                        pass
-                
-                Subscription.objects.update_or_create(
-                    trainer=trainer,
-                    defaults={
-                        'paddle_subscription_id': paddle_subscription_id,
-                        'status': local_status,
-                        'next_billing_date': next_billing_date,
-                    }
-                )
-            except Trainer.DoesNotExist:
-                print(f"Trainer not found for subscription: {paddle_subscription_id}")
-    except Exception as e:
-        print(f"Error handling subscription.created: {str(e)}")
-
-
-def _handle_subscription_updated(data):
-    """Handle subscription.updated webhook."""
-    try:
-        subscription_data = data.get('data', {})
-        paddle_subscription_id = subscription_data.get('id')
-        
-        status_map = {
-            'active': 'active',
-            'paused': 'paused',
-            'canceled': 'cancelled',
-            'cancelled': 'cancelled',
-            'expired': 'expired',
-        }
-        paddle_status = subscription_data.get('status', 'active')
-        local_status = status_map.get(paddle_status.lower(), 'active')
-        
-        next_billing_date = None
-        if subscription_data.get('next_billed_at'):
-            try:
-                next_billing_date = datetime.fromisoformat(
-                    subscription_data['next_billed_at'].replace('Z', '+00:00')
-                ).date()
-            except (ValueError, AttributeError):
-                pass
-        
-        try:
-            subscription = Subscription.objects.get(
-                paddle_subscription_id=paddle_subscription_id
+        GET /api/payments/client-payments/revenue-summary/
+        """
+        if not hasattr(request.user, 'trainer_profile'):
+            return Response(
+                {'error': 'User is not a trainer'},
+                status=status.HTTP_400_BAD_REQUEST
             )
-            subscription.status = local_status
-            if next_billing_date:
-                subscription.next_billing_date = next_billing_date
-            subscription.save()
-        except Subscription.DoesNotExist:
-            # Try to create if doesn't exist (might have been missed)
-            _handle_subscription_created(data)
-    except Exception as e:
-        print(f"Error handling subscription.updated: {str(e)}")
-
-
-def _handle_subscription_cancelled(data):
-    """Handle subscription.cancelled webhook."""
-    try:
-        subscription_data = data.get('data', {})
-        paddle_subscription_id = subscription_data.get('id')
         
-        try:
-            subscription = Subscription.objects.get(
-                paddle_subscription_id=paddle_subscription_id
+        trainer = request.user.trainer_profile
+        summary = get_revenue_summary(trainer)
+        
+        return Response(summary)
+    
+    @action(detail=False, methods=['get'])
+    def recent(self, request):
+        """
+        Get recent payments for current trainer.
+        
+        GET /api/payments/client-payments/recent/
+        """
+        if not hasattr(request.user, 'trainer_profile'):
+            return Response(
+                {'error': 'User is not a trainer'},
+                status=status.HTTP_400_BAD_REQUEST
             )
-            subscription.status = 'cancelled'
-            subscription.save()
-        except Subscription.DoesNotExist:
-            print(f"Subscription not found: {paddle_subscription_id}")
-    except Exception as e:
-        print(f"Error handling subscription.cancelled: {str(e)}")
-
-
-def _handle_transaction_completed(data):
-    """Handle transaction.completed webhook."""
-    try:
-        transaction_data = data.get('data', {})
-        paddle_transaction_id = transaction_data.get('id')
-        subscription_id = transaction_data.get('subscription_id')
         
-        # Extract amount and currency
-        amount = None
-        currency = 'USD'
+        trainer = request.user.trainer_profile
+        limit = int(request.query_params.get('limit', 10))
+        recent_payments = get_recent_payments(trainer, limit)
         
-        # Try different possible locations for amount
-        if 'details' in transaction_data:
-            amount = transaction_data['details'].get('totals', {}).get('total')
-            currency = transaction_data['details'].get('currency_code', 'USD')
-        elif 'totals' in transaction_data:
-            amount = transaction_data['totals'].get('total')
-            currency = transaction_data.get('currency_code', 'USD')
-        elif 'amount' in transaction_data:
-            amount = transaction_data['amount']
-            currency = transaction_data.get('currency_code', 'USD')
+        serializer = ClientPaymentSerializer(recent_payments, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], url_path='unpaid')
+    def unpaid_clients(self, request):
+        """
+        Get list of clients with unpaid status.
         
-        if not amount or not subscription_id:
-            print(f"Incomplete transaction data: {transaction_data}")
-            return
-        
-        try:
-            subscription = Subscription.objects.get(
-                paddle_subscription_id=subscription_id
+        GET /api/payments/client-payments/unpaid/
+        """
+        if not hasattr(request.user, 'trainer_profile'):
+            return Response(
+                {'error': 'User is not a trainer'},
+                status=status.HTTP_400_BAD_REQUEST
             )
-            
-            # Check if payment already exists
-            payment, created = Payment.objects.get_or_create(
-                paddle_transaction_id=paddle_transaction_id,
-                defaults={
-                    'subscription': subscription,
-                    'amount': amount,
-                    'currency': currency,
-                    'status': 'completed',
-                }
-            )
-            
-            if not created:
-                # Update existing payment
-                payment.status = 'completed'
-                payment.amount = amount
-                payment.currency = currency
-                payment.save()
-            
-            # Send payment receipt notification asynchronously
-            from apps.notifications.tasks import send_payment_receipt
-            send_payment_receipt.delay(payment.id)
-            
-        except Subscription.DoesNotExist:
-            print(f"Subscription not found for transaction: {paddle_transaction_id}")
-    except Exception as e:
-        print(f"Error handling transaction.completed: {str(e)}")
-
-
-def _handle_transaction_failed(data):
-    """Handle transaction.payment_failed webhook."""
-    try:
-        transaction_data = data.get('data', {})
-        paddle_transaction_id = transaction_data.get('id')
-        subscription_id = transaction_data.get('subscription_id')
         
-        # Extract amount
-        amount = None
-        if 'details' in transaction_data:
-            amount = transaction_data['details'].get('totals', {}).get('total')
-        elif 'totals' in transaction_data:
-            amount = transaction_data['totals'].get('total')
-        elif 'amount' in transaction_data:
-            amount = transaction_data['amount']
+        trainer = request.user.trainer_profile
+        from apps.clients.models import Client
         
-        if not subscription_id:
-            print(f"No subscription_id in failed transaction: {transaction_data}")
-            return
+        unpaid_clients = Client.objects.filter(
+            trainer=trainer,
+            payment_status__in=['unpaid', 'partial']
+        ).select_related('trainer')
         
-        try:
-            subscription = Subscription.objects.get(
-                paddle_subscription_id=subscription_id
+        # Calculate outstanding amounts (simplified)
+        clients_data = []
+        for client in unpaid_clients:
+            clients_data.append({
+                'id': client.id,
+                'name': client.get_full_name(),
+                'email': client.email,
+                'total_paid': float(client.total_paid),
+                'payment_status': client.payment_status,
+                'last_payment_date': client.last_payment_date,
+            })
+        
+        return Response(clients_data)
+    
+    @action(detail=False, methods=['get'], url_path='export')
+    def export_payments(self, request):
+        """
+        Export payment history to CSV.
+        
+        GET /api/payments/client-payments/export/
+        Query params:
+            - start_date: Start date (YYYY-MM-DD)
+            - end_date: End date (YYYY-MM-DD)
+        """
+        if not hasattr(request.user, 'trainer_profile'):
+            return Response(
+                {'error': 'User is not a trainer'},
+                status=status.HTTP_400_BAD_REQUEST
             )
-            
-            Payment.objects.update_or_create(
-                paddle_transaction_id=paddle_transaction_id,
-                defaults={
-                    'subscription': subscription,
-                    'amount': amount or 0,
-                    'currency': transaction_data.get('currency_code', 'USD'),
-                    'status': 'failed',
-                }
-            )
-        except Subscription.DoesNotExist:
-            print(f"Subscription not found for failed transaction: {paddle_transaction_id}")
-    except Exception as e:
-        print(f"Error handling transaction.failed: {str(e)}")
-
+        
+        trainer = request.user.trainer_profile
+        from apps.clients.models import Client
+        from django.utils.dateparse import parse_date
+        
+        client_ids = Client.objects.filter(trainer=trainer).values_list('id', flat=True)
+        payments = ClientPayment.objects.filter(client_id__in=client_ids).select_related('client')
+        
+        # Filter by date range if provided
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        if start_date:
+            payments = payments.filter(payment_date__gte=parse_date(start_date))
+        if end_date:
+            payments = payments.filter(payment_date__lte=parse_date(end_date))
+        
+        payments = payments.order_by('-payment_date', '-created_at')
+        
+        # Create CSV
+        output = StringIO()
+        writer = csv.writer(output)
+        
+        # Header
+        writer.writerow([
+            'Date', 'Client', 'Email', 'Amount', 'Currency', 'Payment Method',
+            'Reference ID', 'Notes', 'Recorded By', 'Created At'
+        ])
+        
+        # Data rows
+        for payment in payments:
+            writer.writerow([
+                payment.payment_date.strftime('%Y-%m-%d'),
+                payment.client.get_full_name(),
+                payment.client.email,
+                payment.amount,
+                payment.currency,
+                payment.get_payment_method_display(),
+                payment.reference_id or '',
+                payment.notes or '',
+                payment.recorded_by.email if payment.recorded_by else '',
+                payment.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            ])
+        
+        response = HttpResponse(output.getvalue(), content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="payments_export.csv"'
+        return response

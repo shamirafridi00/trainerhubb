@@ -22,6 +22,27 @@ from django.db.models import Sum, Count, Avg, Q
 from datetime import timedelta
 
 
+def get_or_create_trainer_profile(user):
+    """
+    Get or create trainer profile for a user.
+    Creates a default trainer profile if one doesn't exist.
+    """
+    try:
+        return user.trainer_profile
+    except Trainer.DoesNotExist:
+        # Create a default trainer profile
+        business_name = user.get_full_name() or f"{user.email}'s Fitness Business"
+        trainer = Trainer.objects.create(
+            user=user,
+            business_name=business_name,
+            bio='',
+            location='',
+            timezone='UTC',
+            is_verified=False
+        )
+        return trainer
+
+
 def landing(request):
     """Landing page for unauthenticated users."""
     if request.user.is_authenticated:
@@ -98,11 +119,7 @@ def dashboard(request):
 @login_required
 def dashboard_stats(request):
     """Dashboard stats partial for HTMX."""
-    try:
-        trainer = request.user.trainer_profile
-    except Trainer.DoesNotExist:
-        return render(request, 'partials/dashboard/stats.html', {'stats': []})
-    
+    trainer = get_or_create_trainer_profile(request.user)
     now = timezone.now()
     today = now.date()
     this_month = today.replace(day=1)
@@ -340,12 +357,8 @@ def bookings_list_partial(request):
 @login_required
 def bookings_create_form(request):
     """Booking creation form partial for HTMX modal."""
-    try:
-        trainer = request.user.trainer_profile
-        clients = Client.objects.filter(trainer=trainer, is_active=True).order_by('first_name', 'last_name')
-    except Trainer.DoesNotExist:
-        clients = Client.objects.none()
-    
+    trainer = get_or_create_trainer_profile(request.user)
+    clients = Client.objects.filter(trainer=trainer, is_active=True).order_by('first_name', 'last_name')
     return render(request, 'partials/bookings/form.html', {'clients': clients})
 
 
@@ -353,34 +366,89 @@ def bookings_create_form(request):
 @require_http_methods(["POST"])
 def bookings_create(request):
     """Create booking via HTMX."""
-    try:
-        trainer = request.user.trainer_profile
-    except Trainer.DoesNotExist:
-        return JsonResponse({'error': 'Trainer profile not found'}, status=400)
+    import logging
+    logger = logging.getLogger(__name__)
     
-    client_id = request.POST.get('client')
-    start_time_str = request.POST.get('start_time')
-    duration_minutes = int(request.POST.get('duration_minutes', 60))
-    notes = request.POST.get('notes', '')
+    # Get or create trainer profile
+    trainer = get_or_create_trainer_profile(request.user)
     
-    if not all([client_id, start_time_str]):
+    # Get form data
+    client_id = request.POST.get('client', '').strip()
+    start_time_str = request.POST.get('start_time', '').strip()
+    duration_minutes_str = request.POST.get('duration_minutes', '60').strip()
+    notes = request.POST.get('notes', '').strip()
+    
+    # Preserve form data for error messages
+    form_data = {
+        'client': client_id,
+        'start_time': start_time_str,
+        'duration_minutes': duration_minutes_str,
+        'notes': notes
+    }
+    
+    # Get clients list for form
+    clients = Client.objects.filter(trainer=trainer, is_active=True).order_by('first_name', 'last_name')
+    
+    # Validate required fields
+    if not client_id:
         return render(request, 'partials/bookings/form.html', {
-            'clients': Client.objects.filter(trainer=trainer, is_active=True),
-            'error': 'Client and start time are required'
+            'clients': clients,
+            'form_data': form_data,
+            'error': 'Please select a client.'
+        })
+    
+    if not start_time_str:
+        return render(request, 'partials/bookings/form.html', {
+            'clients': clients,
+            'form_data': form_data,
+            'error': 'Start date and time are required.'
+        })
+    
+    # Validate duration
+    try:
+        duration_minutes = int(duration_minutes_str)
+        if duration_minutes < 15:
+            return render(request, 'partials/bookings/form.html', {
+                'clients': clients,
+                'form_data': form_data,
+                'error': 'Duration must be at least 15 minutes.'
+            })
+    except ValueError:
+        return render(request, 'partials/bookings/form.html', {
+            'clients': clients,
+            'form_data': form_data,
+            'error': 'Duration must be a valid number.'
         })
     
     try:
+        # Get client
         client = Client.objects.get(id=client_id, trainer=trainer)
+        
         # Parse datetime-local format (YYYY-MM-DDTHH:MM)
         try:
             start_time = datetime.strptime(start_time_str, '%Y-%m-%dT%H:%M')
         except ValueError:
             # Try with seconds if provided
-            start_time = datetime.strptime(start_time_str, '%Y-%m-%dT%H:%M:%S')
+            try:
+                start_time = datetime.strptime(start_time_str, '%Y-%m-%dT%H:%M:%S')
+            except ValueError:
+                return render(request, 'partials/bookings/form.html', {
+                    'clients': clients,
+                    'form_data': form_data,
+                    'error': 'Invalid date/time format. Please use the date picker.'
+                })
         
         # Make timezone-aware
         if timezone.is_naive(start_time):
             start_time = timezone.make_aware(start_time)
+        
+        # Check if booking is in the past
+        if start_time < timezone.now():
+            return render(request, 'partials/bookings/form.html', {
+                'clients': clients,
+                'form_data': form_data,
+                'error': 'Cannot create a booking in the past.'
+            })
         
         end_time = start_time + timedelta(minutes=duration_minutes)
         
@@ -394,27 +462,48 @@ def bookings_create(request):
             status='pending'
         )
         
-        # Trigger notification asynchronously
-        from apps.notifications.tasks import send_booking_confirmation
-        send_booking_confirmation.delay(booking.id)
+        logger.info(f'Booking created: {booking.id} - {client.get_full_name()} at {start_time} by trainer {trainer.id}')
         
-        # Check if request is from dashboard (no bookings-list target)
+        # Trigger notification asynchronously (non-blocking, fail-fast if Redis unavailable)
+        # Use threading to avoid blocking the request if Celery/Redis is down
+        import threading
+        def send_notification_async():
+            try:
+                from apps.notifications.tasks import send_booking_confirmation
+                # Try to send via Celery, but fail fast if Redis is unavailable
+                try:
+                    send_booking_confirmation.delay(booking.id)
+                except Exception as celery_error:
+                    # If Celery fails (Redis down), skip notification silently
+                    logger.debug(f'Celery unavailable, skipping notification: {str(celery_error)}')
+            except Exception as e:
+                logger.debug(f'Could not send booking confirmation notification: {str(e)}')
+        
+        # Start notification in background thread (non-blocking)
+        notification_thread = threading.Thread(target=send_notification_async, daemon=True)
+        notification_thread.start()
+        
+        # Check if request is from dashboard
         hx_target = request.headers.get('HX-Target', '')
-        if hx_target != 'bookings-list' or not hx_target:
-            # Return success message that will close modal
-            return render(request, 'partials/bookings/form_success.html', {'message': 'Booking created successfully!'})
+        if hx_target == 'bookings-list':
+            return bookings_list_partial(request)
         
-        # Return updated list for bookings page
-        return bookings_list_partial(request)
+        # Return success message that will close modal
+        return render(request, 'partials/bookings/form_success.html', {'message': 'Booking created successfully!'})
+        
     except Client.DoesNotExist:
         return render(request, 'partials/bookings/form.html', {
-            'clients': Client.objects.filter(trainer=trainer, is_active=True),
-            'error': 'Client not found'
+            'clients': clients,
+            'form_data': form_data,
+            'error': 'Selected client not found.'
         })
     except Exception as e:
+        logger.error(f'Error creating booking: {str(e)}', exc_info=True)
+        error_msg = str(e)
         return render(request, 'partials/bookings/form.html', {
-            'clients': Client.objects.filter(trainer=trainer, is_active=True),
-            'error': str(e)
+            'clients': clients,
+            'form_data': form_data,
+            'error': f'Error creating booking: {error_msg}'
         })
 
 
@@ -435,9 +524,20 @@ def bookings_confirm(request, booking_id):
         booking.status = 'confirmed'
         booking.save()
         
-        # Trigger notification asynchronously
-        from apps.notifications.tasks import send_booking_confirmation
-        send_booking_confirmation.delay(booking.id)
+        # Trigger notification asynchronously (non-blocking)
+        import threading
+        def send_notification_async():
+            try:
+                from apps.notifications.tasks import send_booking_confirmation
+                try:
+                    send_booking_confirmation.delay(booking.id)
+                except Exception:
+                    pass  # Silently fail if Redis/Celery unavailable
+            except Exception:
+                pass
+        
+        notification_thread = threading.Thread(target=send_notification_async, daemon=True)
+        notification_thread.start()
     
     # Return updated list
     return bookings_list_partial(request)
@@ -481,11 +581,7 @@ def clients_list(request):
 @login_required
 def clients_list_partial(request):
     """Clients list partial for HTMX."""
-    try:
-        trainer = request.user.trainer_profile
-    except Trainer.DoesNotExist:
-        return render(request, 'partials/clients/list.html', {'clients': []})
-    
+    trainer = get_or_create_trainer_profile(request.user)
     clients = Client.objects.filter(trainer=trainer).order_by('-created_at')
     
     # Filters
@@ -512,33 +608,71 @@ def clients_create_form(request):
 @require_http_methods(["POST"])
 def clients_create(request):
     """Create client via HTMX."""
-    try:
-        trainer = request.user.trainer_profile
-    except Trainer.DoesNotExist:
-        return JsonResponse({'error': 'Trainer profile not found'}, status=400)
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Get or create trainer profile
+    trainer = get_or_create_trainer_profile(request.user)
+    
+    # Validate required fields
+    first_name = request.POST.get('first_name', '').strip()
+    last_name = request.POST.get('last_name', '').strip()
+    email = request.POST.get('email', '').strip()
+    
+    # Preserve form data for error messages
+    form_data = {
+        'first_name': first_name,
+        'last_name': last_name,
+        'email': email,
+        'phone': request.POST.get('phone', ''),
+        'fitness_level': request.POST.get('fitness_level', 'beginner'),
+        'notes': request.POST.get('notes', ''),
+    }
+    
+    if not first_name or not last_name or not email:
+        return render(request, 'partials/clients/form.html', {
+            'client': None,
+            'form_data': form_data,
+            'error': 'First name, last name, and email are required.'
+        })
     
     try:
+        # Check if client with this email already exists for this trainer
+        if Client.objects.filter(trainer=trainer, email=email).exists():
+            return render(request, 'partials/clients/form.html', {
+                'client': None,
+                'form_data': form_data,
+                'error': f'A client with email {email} already exists in your client list.'
+            })
+        
         client = Client.objects.create(
             trainer=trainer,
-            first_name=request.POST.get('first_name'),
-            last_name=request.POST.get('last_name'),
-            email=request.POST.get('email'),
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
             phone=request.POST.get('phone', ''),
             fitness_level=request.POST.get('fitness_level', 'beginner'),
             notes=request.POST.get('notes', ''),
             is_active=True
         )
         
+        logger.info(f'Client created: {client.id} - {client.first_name} {client.last_name} by trainer {trainer.id}')
+        
         # Check if request is from dashboard
         hx_target = request.headers.get('HX-Target', '')
-        if hx_target != 'clients-list' or not hx_target:
-            return render(request, 'partials/clients/form_success.html', {'message': 'Client created successfully!'})
+        if hx_target == 'clients-list':
+            return clients_list_partial(request)
         
-        return clients_list_partial(request)
+        return render(request, 'partials/clients/form_success.html', {'message': 'Client created successfully!'})
     except Exception as e:
+        logger.error(f'Error creating client: {str(e)}', exc_info=True)
+        error_msg = str(e)
+        if 'unique constraint' in error_msg.lower() or 'duplicate' in error_msg.lower():
+            error_msg = f'A client with email {email} already exists.'
         return render(request, 'partials/clients/form.html', {
             'client': None,
-            'error': str(e)
+            'form_data': form_data,
+            'error': f'Error creating client: {error_msg}'
         })
 
 
@@ -583,11 +717,7 @@ def packages_list(request):
 @login_required
 def packages_list_partial(request):
     """Packages list partial for HTMX."""
-    try:
-        trainer = request.user.trainer_profile
-    except Trainer.DoesNotExist:
-        return render(request, 'partials/packages/list.html', {'packages': []})
-    
+    trainer = get_or_create_trainer_profile(request.user)
     packages = SessionPackage.objects.filter(trainer=trainer).order_by('-created_at')
     
     is_active = request.GET.get('is_active')
@@ -609,31 +739,114 @@ def packages_create_form(request):
 @require_http_methods(["POST"])
 def packages_create(request):
     """Create package via HTMX."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Get or create trainer profile
+    trainer = get_or_create_trainer_profile(request.user)
+    
+    # Validate required fields
+    name = request.POST.get('name', '').strip()
+    sessions_count = request.POST.get('sessions_count', '').strip()
+    price = request.POST.get('price', '').strip()
+    
+    # Preserve form data for error messages
+    form_data = {
+        'name': name,
+        'description': request.POST.get('description', ''),
+        'sessions_count': sessions_count,
+        'price': price,
+        'is_active': request.POST.get('is_active') == 'on'
+    }
+    
+    # Validate required fields
+    if not name:
+        return render(request, 'partials/packages/form.html', {
+            'package': None,
+            'form_data': form_data,
+            'error': 'Package name is required.'
+        })
+    
+    if not sessions_count:
+        return render(request, 'partials/packages/form.html', {
+            'package': None,
+            'form_data': form_data,
+            'error': 'Sessions count is required.'
+        })
+    
+    if not price:
+        return render(request, 'partials/packages/form.html', {
+            'package': None,
+            'form_data': form_data,
+            'error': 'Price is required.'
+        })
+    
+    # Validate numeric fields
     try:
-        trainer = request.user.trainer_profile
-    except Trainer.DoesNotExist:
-        return JsonResponse({'error': 'Trainer profile not found'}, status=400)
+        sessions_count_int = int(sessions_count)
+        if sessions_count_int < 1:
+            return render(request, 'partials/packages/form.html', {
+                'package': None,
+                'form_data': form_data,
+                'error': 'Sessions count must be at least 1.'
+            })
+    except ValueError:
+        return render(request, 'partials/packages/form.html', {
+            'package': None,
+            'form_data': form_data,
+            'error': 'Sessions count must be a valid number.'
+        })
     
     try:
+        price_float = float(price)
+        if price_float < 0:
+            return render(request, 'partials/packages/form.html', {
+                'package': None,
+                'form_data': form_data,
+                'error': 'Price cannot be negative.'
+            })
+    except ValueError:
+        return render(request, 'partials/packages/form.html', {
+            'package': None,
+            'form_data': form_data,
+            'error': 'Price must be a valid number.'
+        })
+    
+    try:
+        # Check if package with this name already exists for this trainer
+        if SessionPackage.objects.filter(trainer=trainer, name=name).exists():
+            return render(request, 'partials/packages/form.html', {
+                'package': None,
+                'form_data': form_data,
+                'error': f'A package with name "{name}" already exists.'
+            })
+        
         package = SessionPackage.objects.create(
             trainer=trainer,
-            name=request.POST.get('name'),
+            name=name,
             description=request.POST.get('description', ''),
-            sessions_count=int(request.POST.get('sessions_count', 1)),
-            price=float(request.POST.get('price', 0)),
+            sessions_count=sessions_count_int,
+            price=price_float,
             is_active=request.POST.get('is_active') == 'on'
         )
         
+        logger.info(f'Package created: {package.id} - {package.name} by trainer {trainer.id}')
+        
         # Check if request is from dashboard
         hx_target = request.headers.get('HX-Target', '')
-        if hx_target != 'packages-list' or not hx_target:
-            return render(request, 'partials/packages/form_success.html', {'message': 'Package created successfully!'})
+        if hx_target == 'packages-list':
+            return packages_list_partial(request)
         
-        return packages_list_partial(request)
+        return render(request, 'partials/packages/form_success.html', {'message': 'Package created successfully!'})
     except Exception as e:
+        logger.error(f'Error creating package: {str(e)}', exc_info=True)
+        error_msg = str(e)
+        if 'unique constraint' in error_msg.lower() or 'duplicate' in error_msg.lower():
+            error_msg = f'A package with name "{name}" already exists.'
         return render(request, 'partials/packages/form.html', {
             'package': None,
-            'error': str(e)
+            'form_data': form_data,
+            'error': f'Error creating package: {error_msg}'
         })
 
 
