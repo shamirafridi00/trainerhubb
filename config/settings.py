@@ -16,6 +16,10 @@ SECRET_KEY = config('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
 
+# HTMX Legacy Support
+# TODO: Remove after React migration complete
+USE_HTMX = config('USE_HTMX', default=True, cast=bool)
+
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost', cast=Csv())
 
 # Application definition
@@ -46,6 +50,7 @@ INSTALLED_APPS = [
     'apps.notifications',
     'apps.analytics',
     'apps.frontend',
+    'apps.react_app',
     'apps.admin_panel',
     'apps.pages',
     'apps.workflows',
@@ -75,7 +80,10 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
+        'DIRS': [d for d in [
+            BASE_DIR / 'templates',
+            BASE_DIR / 'templates' / 'legacy' if USE_HTMX else None,
+        ] if d is not None],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -83,6 +91,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'apps.core.context_processors.htmx_legacy_warning',
             ],
         },
     },

@@ -18,6 +18,18 @@
 
 **Ready for production deployment!** 🎉
 
+## ⚠️ Frontend Migration Status
+
+**React Frontend (trainer-app/)**: ✅ **ACTIVE** - Primary user interface
+**HTMX Legacy (apps/frontend_legacy/)**: ⚠️ **DEPRECATED** - Isolated for removal
+
+- HTMX code has been moved to `apps/frontend_legacy/` and `templates/legacy/`
+- Legacy functionality is preserved behind `USE_HTMX=True` setting
+- All new development should use React frontend
+- Migration monitoring is active with logging and warnings
+
+**To disable HTMX legacy:** Set `USE_HTMX=False` in environment variables
+
 ## 🛠️ Tech Stack
 
 ### Backend

@@ -1,0 +1,38 @@
+# TrainerHub Local Development - Hosts File Setup
+
+If you want to use subdomain-based routing (recommended for production-like experience),
+add these entries to your /etc/hosts file:
+
+## Manual Setup (requires sudo)
+sudo tee -a /etc/hosts > /dev/null << 'EOF'
+
+# TrainerHub Local Development Domains
+127.0.0.1    trainerhubb.local
+127.0.0.1    www.trainerhubb.local
+127.0.0.1    app.trainerhubb.local
+127.0.0.1    app.localhost
+EOF
+
+## Alternative: Simple Port-Based Development
+If you can't modify /etc/hosts, use the port-based setup instead:
+
+- Django (Landing): http://localhost:8000
+- React (Dashboard): http://localhost:3000
+
+The run_local.sh script handles this automatically.
+
+## Testing the Setup
+
+1. Run: ./run_local.sh
+2. Visit: http://localhost:8000
+3. Click "Get Started" → React modal appears
+4. Register/Login → Redirects to http://localhost:3000/dashboard
+
+## Troubleshooting
+
+If you get DNS errors:
+1. Check if hosts entries are correct
+2. Try using IP directly: http://127.0.0.1:8000
+3. Use the port-based setup as fallback
+
+For production deployment, the subdomain setup will work automatically.

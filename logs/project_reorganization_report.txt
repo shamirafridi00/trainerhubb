@@ -1,0 +1,8 @@
+Project Reorganization Report
+==================================================
+
+Total operations: 0
+
+Files moved: 0
+
+Rollback information available in moves_log

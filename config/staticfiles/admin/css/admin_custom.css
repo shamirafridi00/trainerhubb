@@ -1,0 +1,9 @@
+/**
+ * Minimal Admin Panel Customizations
+ * Only essential overrides - django-admin-interface handles the rest
+ */
+
+/* Keep only minimal customizations if needed */
+#header {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}

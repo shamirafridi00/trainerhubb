@@ -40,6 +40,20 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
           });
+
+          // Redirect to app subdomain after successful login
+          const currentHost = window.location.host;
+          if (!currentHost.startsWith('app.')) {
+            // Handle both production and development environments
+            const baseDomain = currentHost.replace('www.', '');
+            if (baseDomain.includes('.app') || baseDomain.includes('.local')) {
+              // Production or local domain
+              window.location.href = `http://app.${baseDomain}/dashboard`;
+            } else {
+              // Localhost development - use port 3000 for React app
+              window.location.href = `http://localhost:3000/dashboard`;
+            }
+          }
         } catch (error: any) {
           // Handle validation errors from backend
           let errorMessage = 'Login failed';
@@ -78,6 +92,20 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
           });
+
+          // Redirect to app subdomain after successful registration
+          const currentHost = window.location.host;
+          if (!currentHost.startsWith('app.')) {
+            // Handle both production and development environments
+            const baseDomain = currentHost.replace('www.', '');
+            if (baseDomain.includes('.app') || baseDomain.includes('.local')) {
+              // Production or local domain
+              window.location.href = `http://app.${baseDomain}/dashboard`;
+            } else {
+              // Localhost development - use port 3000 for React app
+              window.location.href = `http://localhost:3000/dashboard`;
+            }
+          }
         } catch (error: any) {
           // Handle validation errors from backend
           let errorMessage = 'Registration failed';
