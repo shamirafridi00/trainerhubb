@@ -24,11 +24,11 @@ export function useSubscription() {
       setIsLoading(true);
       
       // Fetch current subscription
-      const subResponse = await apiClient.get<Subscription>('/payments/subscriptions/current/');
+      const subResponse = await apiClient.get<Subscription>('/subscriptions/current/');
       setSubscription(subResponse);
       
       // Fetch feature limits
-      const featuresResponse = await apiClient.get<SubscriptionFeatures>('/payments/subscriptions/features/');
+      const featuresResponse = await apiClient.get<SubscriptionFeatures>('/subscriptions/features/');
       setFeatures(featuresResponse);
       
       setError(null);

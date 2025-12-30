@@ -15,7 +15,7 @@ interface DashboardStats {
   revenueThisMonth: number;
 }
 
-export function DashboardPage() {
+function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
     totalClients: 0,
     activeClients: 0,
@@ -71,7 +71,7 @@ export function DashboardPage() {
       try {
         const revenueResponse = await apiClient.get<{
           this_month: { total: number };
-        }>('/payments/client-payments/revenue-summary/');
+        }>('/client-payments/revenue-summary/');
         revenueThisMonth = revenueResponse.this_month?.total || 0;
       } catch (err) {
         console.log('Revenue endpoint not available');
@@ -79,7 +79,7 @@ export function DashboardPage() {
 
       // Fetch recent payments
       try {
-        const paymentsResponse = await apiClient.get<ClientPayment[]>('/payments/client-payments/recent/?limit=5');
+        const paymentsResponse = await apiClient.get<ClientPayment[]>('/client-payments/recent/?limit=5');
         setRecentPayments(Array.isArray(paymentsResponse) ? paymentsResponse : []);
       } catch (err) {
         console.log('Recent payments not available');
@@ -364,3 +364,5 @@ export function DashboardPage() {
     </div>
   );
 }
+
+export default DashboardPage;

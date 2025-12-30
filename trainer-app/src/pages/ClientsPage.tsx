@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 
-export function ClientsPage() {
+function ClientsPage() {
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -35,3 +35,4 @@ export function ClientsPage() {
   );
 }
 
+export default ClientsPage;

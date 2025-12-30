@@ -234,6 +234,7 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:3003',
     'http://localhost:3004',
     'http://localhost:3005',
+    'http://localhost:3006',  # React frontend
     'http://localhost:8000',
     'http://127.0.0.1:3000',
     'http://127.0.0.1:3001',
@@ -241,6 +242,7 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:3003',
     'http://127.0.0.1:3004',
     'http://127.0.0.1:3005',
+    'http://127.0.0.1:3006',  # React frontend
     'http://127.0.0.1:8000',
     'http://192.168.100.182:3000',
     'http://192.168.100.182:3001',
@@ -248,6 +250,33 @@ CORS_ALLOWED_ORIGINS = [
     'http://192.168.100.182:3003',
     'http://192.168.100.182:3004',
     'http://192.168.100.182:3005',
+    'http://192.168.100.182:3006',  # React frontend
+]
+
+# Allow credentials (cookies, authorization headers) for cross-origin requests
+CORS_ALLOW_CREDENTIALS = True
+
+# Allow all headers for preflight requests
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# Allow specific HTTP methods
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
 ]
 
 # Security settings for production

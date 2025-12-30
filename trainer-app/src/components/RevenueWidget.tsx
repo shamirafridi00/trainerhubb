@@ -34,7 +34,7 @@ export function RevenueWidget() {
   const fetchSummary = async () => {
     try {
       setIsLoading(true);
-      const data = await apiClient.get<RevenueSummary>('/payments/client-payments/revenue-summary/');
+      const data = await apiClient.get<RevenueSummary>('/client-payments/revenue-summary/');
       setSummary(data);
     } catch (err) {
       console.error('Failed to load revenue summary:', err);

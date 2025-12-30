@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Save, Eye, Plus, ArrowLeft, Settings, Globe, GlobeOff } from 'lucide-react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { Save, Eye, Plus, ArrowLeft, Settings, Globe, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePageBuilder } from '@/hooks/usePageBuilder';
 import { SortableSections } from '@/components/PageBuilder/SortableSections';
@@ -13,6 +13,10 @@ import type { Page } from '@/types';
 export default function PageBuilderPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Determine if this is a new page based on URL path
+  const isNewPage = location.pathname === '/pages/new' || !id;
   const [showSEOSettings, setShowSEOSettings] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const {
@@ -29,46 +33,82 @@ export default function PageBuilderPage() {
     deleteSection,
     selectSection,
     reorderSections,
+    setPageState,
   } = usePageBuilder();
 
   useEffect(() => {
-    if (id && id !== 'new') {
-      loadPage(parseInt(id));
-    } else if (id === 'new') {
-      // Create new page
-      handleCreateNewPage();
-    }
-  }, [id, loadPage]);
-
-  const handleCreateNewPage = async () => {
-    try {
-      const newPage = await apiClient.post<Page>('/pages/', {
-        title: 'New Page',
-        slug: `page-${Date.now()}`,
-        content: {},
+    if (isNewPage) {
+      // For new pages, create a temporary page object
+      setPageState({
+        page: {
+          id: 0,
+          title: 'New Page',
+          slug: `page-${Date.now()}`,
+          content: {},
+          is_published: false,
+          seo_title: '',
+          seo_description: '',
+          seo_keywords: '',
+          sections: []
+        } as Page,
+        sections: [],
+        isLoading: false,
+        error: null,
       });
-      navigate(`/pages/${newPage.id}/edit`);
-    } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to create page');
+    } else if (id) {
+      loadPage(parseInt(id));
     }
-  };
+  }, [id, isNewPage, setPageState, loadPage]);
+
 
   const handleSave = async () => {
-    await savePage();
-    // Show success message
-    const saveButton = document.querySelector('[data-save-button]') as HTMLElement;
-    if (saveButton) {
-      const originalText = saveButton.textContent;
-      saveButton.textContent = 'Saved!';
-      setTimeout(() => {
-        if (saveButton) saveButton.textContent = originalText;
-      }, 2000);
+    try {
+      if (isNewPage && page && !page.id) {
+        // Create new page first
+        const newPage = await apiClient.post<Page>('/pages/', {
+          title: page.title,
+          slug: page.slug,
+          content: page.content,
+          seo_title: page.seo_title,
+          seo_description: page.seo_description,
+          seo_keywords: page.seo_keywords,
+        });
+
+        // Create sections for the new page
+        if (sections.length > 0) {
+          const sectionPromises = sections.map(section =>
+            apiClient.post<PageSection>(`/pages/${newPage.id}/sections/`, {
+              section_type: section.section_type,
+              order: section.order,
+              content: section.content,
+              is_visible: section.is_visible,
+            })
+          );
+          await Promise.all(sectionPromises);
+        }
+
+        navigate(`/pages/${newPage.id}/edit`);
+        return;
+      }
+
+      await savePage();
+      // Show success message
+      const saveButton = document.querySelector('[data-save-button]') as HTMLElement;
+      if (saveButton) {
+        const originalText = saveButton.textContent;
+        saveButton.textContent = 'Saved!';
+        setTimeout(() => {
+          if (saveButton) saveButton.textContent = originalText;
+        }, 2000);
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to save page');
     }
   };
 
   // Auto-save every 30 seconds
   useEffect(() => {
-    if (!page || !id || id === 'new') return;
+    if (!page || isNewPage) return;
 
     const autoSaveInterval = setInterval(() => {
       if (sections.length > 0) {
@@ -77,14 +117,21 @@ export default function PageBuilderPage() {
     }, 30000); // 30 seconds
 
     return () => clearInterval(autoSaveInterval);
-  }, [page, sections, savePage, id]);
+  }, [page, sections, savePage, isNewPage]);
 
   const handleSaveSEOSettings = async (seoData: Partial<Page>) => {
     if (!page) return;
     try {
-      const updatedPage = await apiClient.patch<Page>(`/pages/${page.id}/`, seoData);
-      // Reload the page to get updated data
-      if (id) await loadPage(parseInt(id));
+      if (isNewPage) {
+        // For new pages, just update the local state
+        setPageState({
+          page: { ...page, ...seoData } as Page
+        });
+      } else {
+        const updatedPage = await apiClient.patch<Page>(`/pages/${page.id}/`, seoData);
+        // Reload the page to get updated data
+        await loadPage(parseInt(id!));
+      }
     } catch (err) {
       throw err; // Let the dialog handle the error
     }
@@ -132,7 +179,7 @@ export default function PageBuilderPage() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading && !isNewPage) {
     return (
       <div className="container mx-auto px-4 py-8">
         <p>Loading page...</p>
@@ -140,7 +187,7 @@ export default function PageBuilderPage() {
     );
   }
 
-  if (!page && id && id !== 'new') {
+  if (!page && id && !isNewPage) {
     return (
       <div className="container mx-auto px-4 py-8">
         <p>Page not found</p>
@@ -151,16 +198,12 @@ export default function PageBuilderPage() {
     );
   }
 
-  if (!page && id === 'new') {
+  if (!page) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <p>Creating new page...</p>
+        <p>Loading...</p>
       </div>
     );
-  }
-
-  if (!page) {
-    return null;
   }
 
   return (
@@ -174,8 +217,10 @@ export default function PageBuilderPage() {
           <div>
             <h1 className="text-xl font-bold">{page.title}</h1>
             <div className="flex items-center gap-2">
-              <p className="text-sm text-muted-foreground">Page Builder</p>
-              {page.is_published && (
+              <p className="text-sm text-muted-foreground">
+                {isNewPage ? 'Create New Page' : 'Page Builder'}
+              </p>
+              {page.is_published && page.id > 0 && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
                   <Globe className="mr-1 h-3 w-3" />
                   Published
@@ -213,7 +258,7 @@ export default function PageBuilderPage() {
           </Button>
           {page.is_published ? (
             <Button variant="outline" size="sm" onClick={handleUnpublish}>
-              <GlobeOff className="mr-2 h-3 w-3" />
+              <XCircle className="mr-2 h-3 w-3" />
               Unpublish
             </Button>
           ) : (
@@ -254,14 +299,42 @@ export default function PageBuilderPage() {
               {error}
             </div>
           )}
-          
-          <SortableSections
-            sections={sections}
-            selectedSection={selectedSection}
-            onSelect={selectSection}
-            onDelete={deleteSection}
-            onReorder={reorderSections}
-          />
+
+          {sections.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="max-w-md">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Start Building Your Page
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  Add sections from the sidebar to create your custom landing page.
+                  Start with a hero section to make a great first impression.
+                </p>
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-500">Suggested sections:</p>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {['hero', 'services', 'about', 'contact'].map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => addSection(type)}
+                        className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm hover:bg-blue-100 transition-colors"
+                      >
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <SortableSections
+              sections={sections}
+              selectedSection={selectedSection}
+              onSelect={selectSection}
+              onDelete={deleteSection}
+              onReorder={reorderSections}
+            />
+          )}
         </div>
 
         {/* Properties Panel */}

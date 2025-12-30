@@ -28,7 +28,7 @@ export default function BillingPage() {
   const fetchPayments = async () => {
     try {
       setLoadingPayments(true);
-      const response = await apiClient.get<{ results?: Payment[]; } | Payment[]>('/payments/payments/');
+      const response = await apiClient.get<{ results?: Payment[]; } | Payment[]>('/payments/');
       const data = response as any;
       setPayments(data.results || data);
     } catch (err) {

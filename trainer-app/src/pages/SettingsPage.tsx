@@ -1,6 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-export function SettingsPage() {
+function SettingsPage() {
   return (
     <div className="space-y-8">
       <div>
@@ -57,3 +57,4 @@ export function SettingsPage() {
   );
 }
 
+export default SettingsPage;

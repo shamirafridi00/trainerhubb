@@ -72,6 +72,25 @@ export function usePageBuilder() {
   const addSection = useCallback(async (sectionType: string, order?: number) => {
     if (!state.page) return;
 
+    // For new pages (id = 0), add section locally without API call
+    if (state.page.id === 0) {
+      const newSection: PageSection = {
+        id: Date.now(), // Temporary ID for local state
+        section_type: sectionType,
+        order: order ?? state.sections.length,
+        content: {},
+        is_visible: true,
+        created_at: new Date().toISOString(),
+      };
+      setState(prev => ({
+        ...prev,
+        sections: [...prev.sections, newSection],
+        selectedSection: newSection,
+      }));
+      return;
+    }
+
+    // For existing pages, add section via API
     try {
       const newSection = await apiClient.post<PageSection>(`/pages/${state.page.id}/sections/`, {
         section_type: sectionType,
@@ -95,6 +114,17 @@ export function usePageBuilder() {
   const updateSection = useCallback(async (sectionId: number, updates: Partial<PageSection>) => {
     if (!state.page) return;
 
+    // For new pages (id = 0), update section locally
+    if (state.page.id === 0) {
+      setState(prev => ({
+        ...prev,
+        sections: prev.sections.map(s => s.id === sectionId ? { ...s, ...updates } : s),
+        selectedSection: prev.selectedSection?.id === sectionId ? { ...prev.selectedSection, ...updates } : prev.selectedSection,
+      }));
+      return;
+    }
+
+    // For existing pages, update section via API
     try {
       const updated = await apiClient.patch<PageSection>(
         `/pages/${state.page.id}/sections/${sectionId}/`,
@@ -116,6 +146,17 @@ export function usePageBuilder() {
   const deleteSection = useCallback(async (sectionId: number) => {
     if (!state.page) return;
 
+    // For new pages (id = 0), delete section locally
+    if (state.page.id === 0) {
+      setState(prev => ({
+        ...prev,
+        sections: prev.sections.filter(s => s.id !== sectionId),
+        selectedSection: prev.selectedSection?.id === sectionId ? null : prev.selectedSection,
+      }));
+      return;
+    }
+
+    // For existing pages, delete section via API
     try {
       await apiClient.delete(`/pages/${state.page.id}/sections/${sectionId}/`);
       setState(prev => ({
@@ -137,11 +178,15 @@ export function usePageBuilder() {
     // Update order locally first
     setState(prev => ({ ...prev, sections: newOrder }));
 
-    // Then update on backend
+    // For new pages (id = 0), skip API call
+    if (state.page.id === 0) {
+      return;
+    }
+
+    // For existing pages, update on backend
     try {
       for (let i = 0; i < newOrder.length; i++) {
-        await apiClient.patch(`/pages/${state.page.id}/sections/`, {
-          id: newOrder[i].id,
+        await apiClient.patch(`/pages/${state.page.id}/sections/${newOrder[i].id}/`, {
           order: i,
         });
       }
@@ -151,12 +196,16 @@ export function usePageBuilder() {
         error: err.response?.data?.detail || 'Failed to reorder sections',
       }));
       // Reload to get correct order
-      if (state.page) loadPage(state.page.id);
+      loadPage(state.page.id);
     }
   }, [state.page, loadPage]);
 
   const selectSection = useCallback((section: PageSection | null) => {
     setState(prev => ({ ...prev, selectedSection: section }));
+  }, []);
+
+  const setPageState = useCallback((pageState: Partial<PageBuilderState>) => {
+    setState(prev => ({ ...prev, ...pageState }));
   }, []);
 
   return {
@@ -168,6 +217,7 @@ export function usePageBuilder() {
     deleteSection,
     reorderSections,
     selectSection,
+    setPageState,
   };
 }
 

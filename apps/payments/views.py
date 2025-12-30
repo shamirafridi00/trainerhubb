@@ -307,7 +307,7 @@ class ClientPaymentViewSet(viewsets.ModelViewSet):
         client.payment_status = payment_status
         client.save()
     
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='revenue-summary')
     def revenue_summary(self, request):
         """
         Get revenue summary for current trainer.

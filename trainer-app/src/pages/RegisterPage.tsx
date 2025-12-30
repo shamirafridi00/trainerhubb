@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 
-export function RegisterPage() {
+function RegisterPage() {
   const navigate = useNavigate();
   const { register, isLoading, error, clearError } = useAuthStore();
   const [formData, setFormData] = useState({
@@ -157,3 +157,4 @@ export function RegisterPage() {
   );
 }
 
+export default RegisterPage;
